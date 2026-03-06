@@ -4,9 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Upload, Shield } from "lucide-react";
 import { Info } from 'lucide-react';
-import { HealthInsuranceForm } from '../../forms/HealthForm';
 import { LifeInsuranceForm } from '../../forms/lifeform';
-import { VehicleInsuranceForm } from '../../forms/vehicleForm';
 
 const ClaimSubmission = () => {
   const [insuranceType, setInsuranceType] = useState("Life insurance");
@@ -29,48 +27,18 @@ const ClaimSubmission = () => {
   //
 
   const renderForm = () => {
-    switch (insuranceType) {
-      case "Life insurance":
-        return <LifeInsuranceForm onSubmit={(formData) => setinsuranceFormData(formData)}/>;
-      case "Health insurance":
-        return <HealthInsuranceForm onSubmit={(formData) => setinsuranceFormData(formData)}/>;
-      case "Vehicle insurance":
-        return <VehicleInsuranceForm onSubmit={(formData) => setinsuranceFormData(formData)}/>;
-      default:
-        return null;
-    }
+    return <LifeInsuranceForm onSubmit={(formData) => setinsuranceFormData(formData)}/>;
   };
 
   const fileUploadContents = () => {
-    switch (insuranceType) {
-      case "Life insurance":
-        return [
-          "insuranceClaimForm",
-          "passBook",
-          "policyDocument",
-          "deathCert",
-          "hospitalDocument",
-          "fir",
-        ];
-        break;
-      case "Health insurance":
-        return [
-          "policyDocs",
-          "finalBill",
-          "passbook",
-        ];
-        break;
-      case "Vehicle insurance":
-        return [
-          "claimForm",
-          "vehicleIdentity",
-          "damageImage",
-          "recipt"
-        ];
-        break;
-      default:
-        return null;
-    }
+    return [
+      "insuranceClaimForm",
+      "passBook",
+      "policyDocument",
+      "deathCert",
+      "hospitalDocument",
+      "fir",
+    ];
   }
 
   const buildFormData = (
@@ -140,9 +108,7 @@ const ClaimSubmission = () => {
     console.log("Original insuranceFormData:", insuranceFormData);
 
     const routes = {
-      'Health insurance': '/claim/healthInsurance',
       'Life insurance': '/claim/lifeInsurance',
-      'Vehicle insurance': '/claim/vehicleInsurance',
     };
 
     // Validation: Check if route exists for insurance type
@@ -250,19 +216,10 @@ const ClaimSubmission = () => {
   };
 
   const getDocumentInfo = (type: string) => {
-    switch (type) {
-      case "Life insurance":
-        return "Upload the policy bond or e-policy PDF issued by your insurer.";
-        break;
-      case "Health insurance":
-        return "Upload the health policy document or insurance card (TPA).";
-        break;
-      case "Vehicle insurance":
-        return "Upload the motor insurance certificate (Form 51) or RC with policy reference.";
-        break;
-      default:
-        return "";
+    if (type === "Life insurance") {
+      return "Upload the policy bond or e-policy PDF issued by your insurer.";
     }
+    return "";
   };
 
 
@@ -287,9 +244,7 @@ const ClaimSubmission = () => {
             value={insuranceType}
             onChange={(e) => setInsuranceType(e.target.value)}
           >
-            <option>Life insurance</option>
-            <option>Health insurance</option>
-            <option>Vehicle insurance</option>
+                    <option>Life insurance</option>
           </select>
         </div>
 

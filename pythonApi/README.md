@@ -128,13 +128,9 @@ FLASK_API=http://localhost:5000
 
 ## Required Model Files
 
-Make sure these model files are in the `pythonApi` directory:
+Make sure the life insurance ML model file is present:
 
-1. `efficientnetv2_rw_m_best.pt` - Vehicle classification model
-2. `model_efficientnetv2m.h5` - Fracture detection model  
-3. `best.pt` - YOLO damage detection model
-4. `prod.csv` - Product database (for health insurance)
-5. `NLEM.csv` - NLEM database (for health insurance)
+1. `life_insurance_fraud_model.pkl` - Trained model for life insurance fraud prediction
 
 ## Running the API
 
@@ -165,13 +161,12 @@ gunicorn -w 4 -b 0.0.0.0:5000 api:app
 
 ## API Endpoints
 
-The API provides the following endpoints:
+The API provides the following endpoints (current implementation):
 
-- `POST /process_vehicle` - Process vehicle insurance claims
-- `POST /lifeinsurance` - Process life insurance claims
-- `POST /healthinsurance` - Process health insurance claims
-- `POST /fraudDetection_health` - Health insurance fraud detection
-- `POST /fraudDetection_vehicle` - Vehicle insurance fraud detection
+- `POST /lifeinsurance/predict` - Predict life insurance fraud (expects JSON payload with model features)
+- `GET /` - Health-check endpoint (returns status and model_loaded flag)
+
+Other endpoints mentioned previously (vehicle/health processing) are not implemented in the current version and may be added in future iterations.
 
 ## Troubleshooting
 

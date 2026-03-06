@@ -2,78 +2,69 @@ import axios from "axios";
 
 class GetAIInsights {
 
-    async getAIClaimCheckVehicle(insuranceDoc) {
-        try {
-            const response = await axios.post(`${process.env.FLASK_API}/process_vehicle`, insuranceDoc);
-            return {
-                aiScore: response.data.aiScore,
-                aiConfidence: response.data.aiConfidence,
-                aiSuggestions: response.data.aiSuggestions
-            }
-        } catch (err) {
-            console.error("Flask API error:", err.response?.data || err.message);
-            throw new Error("Failed to get insights from AI engine");
-        }
-    }
-
     async getAIClaimCheckLife(insuranceDoc) {
         try {
-            const response = await axios.post(`${process.env.FLASK_API}/lifeinsurance`, insuranceDoc);
-            return {
-                aiScore: response.data.aiScore,
-                aiConfidence: response.data.aiConfidence,
-                aiSuggestions: response.data.aiSuggestions
+            // Convert Mongoose document to plain object
+            const plainDoc = insuranceDoc.toObject ? insuranceDoc.toObject() : insuranceDoc;
+
+            // Check if the document contains the fields expected by the Flask model
+            const requiredFields = ["age", "sex", "bmi", "children", "smoker", "region", "charges"];
+            const hasRequired = requiredFields.some((f) => Object.prototype.hasOwnProperty.call(plainDoc, f));
+
+            if (!hasRequired) {
+                console.warn("AI model payload mismatch: missing expected demographic fields for lifeinsurance. Skipping external AI call.");
+                // Return a graceful fallback so callers can proceed without crashing
+                return {
+                    aiScore: null,
+                    aiConfidence: null,
+                    aiSuggestions: ["AI model not applicable for this policy data - required demographic features missing"]
+                };
             }
+
+            // Call Flask AI prediction endpoint
+            const response = await axios.post(`${process.env.FLASK_API}/lifeinsurance/predict`, plainDoc);
+
+            // Map the Flask response to the shape expected by the backend and normalize types
+            const rawScore = response.data.fraud_probability ?? response.data.fraud_score ?? response.data.aiScore ?? null;
+            const aiScore = rawScore == null ? null : Number(rawScore);
+            const rawConfidence = response.data.fraud_probability ?? response.data.aiConfidence ?? null;
+            const aiConfidence = rawConfidence == null ? null : Number(rawConfidence);
+
+            const aiSuggestions = response.data.risk_level
+                ? [String(response.data.risk_level)]
+                : (Array.isArray(response.data.aiSuggestions) ? response.data.aiSuggestions : (response.data.aiSuggestions ? [String(response.data.aiSuggestions)] : []));
+
+            return {
+                aiScore,
+                aiConfidence,
+                aiSuggestions
+            };
         } catch (err) {
-            console.error("Flask API error:", err.response?.data || err.message);
-            throw new Error("Failed to get insights from AI engine");
+            // Include response body if available to aid debugging, but return a graceful fallback to avoid throwing
+            console.error("Flask API error (life):", err.response?.status, err.response?.data || err.message);
+            return {
+                aiScore: null,
+                aiConfidence: null,
+                aiSuggestions: ["AI analysis failed or unavailable"]
+            };
         }
     }
 
-    async getAIClaimCheckHealth(insuranceDoc) {
+    async evaluateRisk(insuranceDoc) {
         try {
-            const response = await axios.post(`${process.env.FLASK_API}/healthinsurance`, insuranceDoc);
-            console.log("response ->", response.data);
-            return {
-                aiScore: response.data.aiScore,
-                aiConfidence: response.data.aiConfidence,
-                aiSuggestions: response.data.aiSuggestions
-            }
-        } catch (err) {
-            console.error("Flask API error:", err.response?.data || err.message);
-            throw new Error("Failed to get insights from AI engine");
-        }
-    }
-
-    async evaluateRiskVehicle(insuranceDoc) {
-        try {
-            // Convert Mongoose document to plain object to avoid serialization issues
             const plainDoc = insuranceDoc.toObject ? insuranceDoc.toObject() : insuranceDoc;
             const response = await axios.post(`${process.env.FLASK_API}/evaluateRisk`, plainDoc);
             return {
-                risk_factors: response.data.risk_factors,
-                suspicious_files: response.data.suspicious_files
-            }
+                risk_factors: response.data.risk_factors || [],
+                suspicious_files: response.data.suspicious_files || []
+            };
         } catch (err) {
-            console.error("Flask API error:", err.response?.data || err.message);
-            throw new Error("Failed to get insights from AI engine");
-        }
-    }
-
-    async evaluateRiskHealth(insuranceDoc) {
-        try {
-            console.log("insuranceDoc ->", insuranceDoc);
-            // Convert Mongoose document to plain object to avoid serialization issues
-            const plainDoc = insuranceDoc.toObject ? insuranceDoc.toObject() : insuranceDoc;
-            const response = await axios.post(`${process.env.FLASK_API}/fraudDetection_health`, plainDoc);
-            console.log("response ->", response.data);
+            console.error("Flask API error (evaluateRisk):", err.response?.status, err.response?.data || err.message);
+            // Graceful fallback
             return {
-                risk_factors: response.data.risk_factors,
-                suspicious_files: response.data.suspicious_files
-            }
-        } catch (err) {
-            console.error("Flask API error:", err.response?.data || err.message);
-            throw new Error("Failed to get insights from AI engine");
+                risk_factors: [],
+                suspicious_files: []
+            };
         }
     }
 }
@@ -81,4 +72,3 @@ class GetAIInsights {
 const getAIInsights = new GetAIInsights();
 
 export default getAIInsights;
-

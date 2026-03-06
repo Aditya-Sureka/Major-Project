@@ -5,29 +5,8 @@ import upload from "../middleware/upload.middleware.js";
 
 const router = express.Router();
 
-router.post(
-  "/vehicleInsurance",
-  verifyAuth,
-  upload.fields([
-    { name: "claimForm", maxCount: 1 },
-    { name: "vehicleIdentity", maxCount: 5 },
-    { name: "damageImage", maxCount: 5 },
-    { name: "recipt", maxCount: 1 },
-  ]),
-  claimController.claimVehicleInsurance
-);
 
-router.put(
-  "/vehicleInsurance/edit/:id",
-  verifyAuth,
-  upload.fields([
-    { name: "claimForm", maxCount: 1 },
-    { name: "vehicleIdentity", maxCount: 5 },
-    { name: "damageImage", maxCount: 5 },
-    { name: "recipt", maxCount: 1 },
-  ]),
-  claimController.editVehicleInsurance
-);
+
 
 router.post(
   "/lifeInsurance",
@@ -69,27 +48,9 @@ router.put(
   claimController.editLifeInsurance
 );
 
-router.post(
-  "/healthInsurance",
-  verifyAuth,
-  upload.fields([
-    { name: "policyDocs", maxCount: 1 },
-    { name: "finalBill", maxCount: 1 },
-    { name: "medicalDocs", maxCount: 1 },
-  ]),
-  claimController.claimHealthInsurance
-);
 
-router.put(
-  "/healthInsurance/edit/:id",
-  verifyAuth,
-  upload.fields([
-    { name: "policyDocs", maxCount: 1 },
-    { name: "finalBill", maxCount: 1 },
-    { name: "medicalDocs", maxCount: 1 },
-  ]),
-  claimController.editHealthInsurance
-);
+
+
 
 router.post("/submit/:id", verifyAuth, claimController.submitInsurance);
 

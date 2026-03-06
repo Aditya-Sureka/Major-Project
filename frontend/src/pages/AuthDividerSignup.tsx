@@ -39,7 +39,7 @@ export default function AuthDividerSignUp({page ='signup'}) {
       >
         <div className="mb-8 grid grid-cols-3 gap-4">
           {/* Icons */}
-          {['Auto', 'Health', 'Life'].map((label, idx) => (
+          {['Life'].map((label) => (
             <div
               key={label}
               className="bg-white/10 backdrop-blur-sm rounded-xl p-6 flex flex-col items-center"
@@ -49,13 +49,7 @@ export default function AuthDividerSignUp({page ='signup'}) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d={
-                    idx === 0
-                      ? 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'
-                      : idx === 1
-                      ? 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z'
-                      : 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'
-                  }
+                  d={'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'}
                 />
               </svg>
               <span className="text-white text-xs font-medium">{label}</span>

@@ -60,33 +60,7 @@ export default function PolicyHolderLogin() {
       {/* Left side - Illustration */}
       <div className="hidden lg:flex lg:items-center lg:justify-center lg:bg-gradient-to-br lg:from-[#0047AB] lg:via-[#0047AB] lg:to-[#10B981] lg:p-12">
         <div className="max-w-md text-center">
-          <div className="mb-8 grid grid-cols-3 gap-4">
-            {/* Car Insurance Icon */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 flex flex-col items-center">
-              <svg className="w-12 h-12 text-white mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-              <span className="text-white text-xs font-medium">Auto</span>
-            </div>
-
-            {/* Health Insurance Icon */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 flex flex-col items-center">
-              <svg className="w-12 h-12 text-white mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                />
-              </svg>
-              <span className="text-white text-xs font-medium">Health</span>
-            </div>
-
+          <div className="mb-8 grid grid-cols-1 gap-4">
             {/* Life Insurance Icon */}
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 flex flex-col items-center">
               <svg className="w-12 h-12 text-white mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

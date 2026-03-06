@@ -30,9 +30,7 @@ backend/
 │   ├── insurer.model.js          # Insurer data model
 │   ├── upload.model.js           # File upload model
 │   ├── checkPolicyCoverage.model.js
-│   ├── healthInsurance.model.js
 │   ├── lifeInsurance.model.js
-│   └── vehicleInsurance.model.js
 ├── routes/                        # API route definitions
 │   ├── auth.routes.js            # Authentication routes
 │   ├── claim.routes.js           # Claim processing routes
@@ -127,20 +125,6 @@ http://localhost:3000
 
 ### Claim Coverage Check Endpoints
 
-#### Vehicle Insurance Coverage Check
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/check/vehicleInsurance` | Check vehicle insurance coverage | Yes |
-| GET | `/check/getAIScore/:id` | Get AI score for claim | Yes |
-| GET | `/check/allClaimChecks` | Get all claim checks | Yes |
-| GET | `/check/getClaim/:id` | Get specific claim check | Yes |
-
-**Required Files for Vehicle Insurance:**
-- `claimForm` (1 file)
-- `vehicleIdentity` (up to 5 files)
-- `damageImage` (up to 5 files)
-- `recipt` (1 file)
-
 #### Life Insurance Coverage Check
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
@@ -154,35 +138,14 @@ http://localhost:3000
 - `fir` (1 file)
 - `passBook` (1 file)
 
-#### Health Insurance Coverage Check
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/check/healthInsurance` | Check health insurance coverage | Yes |
-
-**Required Files for Health Insurance:**
-- `policyDocs` (1 file)
-- `finalBill` (1 file)
-- `medicalDocs` (1 file)
 
 ### Claim Processing Endpoints
-
-#### Vehicle Insurance Claims
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/claim/vehicleInsurance` | Submit vehicle insurance claim | Yes |
-| PUT | `/claim/vehicleInsurance/edit/:id` | Edit vehicle insurance claim | Yes |
 
 #### Life Insurance Claims
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
 | POST | `/claim/lifeInsurance` | Submit life insurance claim | Yes |
 | PUT | `/claim/lifeInsurance/edit/:id` | Edit life insurance claim | Yes |
-
-#### Health Insurance Claims
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/claim/healthInsurance` | Submit health insurance claim | Yes |
-| PUT | `/claim/healthInsurance/edit/:id` | Edit health insurance claim | Yes |
 
 #### General Claim Operations
 | Method | Endpoint | Description | Auth Required |

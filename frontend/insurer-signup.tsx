@@ -116,8 +116,6 @@ export default function InsurerSignup() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="life">Life Insurance</SelectItem>
-                        <SelectItem value="health">Health Insurance</SelectItem>
-                        <SelectItem value="auto">Auto Insurance</SelectItem>
                         <SelectItem value="property">Property Insurance</SelectItem>
                         <SelectItem value="general">General Insurance</SelectItem>
                         <SelectItem value="reinsurance">Reinsurance</SelectItem>

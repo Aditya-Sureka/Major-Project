@@ -1,6 +1,4 @@
 import Claim from "../models/claim.model.js";
-import VehicleInsurance from "../models/vehicleInsurance.model.js";
-import HealthInsurance from "../models/healthInsurance.model.js";
 import LifeInsurance from "../models/lifeInsurance.model.js";
 import Upload from "../models/upload.model.js";
 import { v2 as cloudinary } from 'cloudinary';
@@ -44,37 +42,20 @@ class ClaimDocs {
 
             const { policyId, policyModel } = claimRecord;
 
-            let Model;
-            let populateFields = [];
-
-            switch (policyModel) {
-                case "VehicleInsurance":
-                    Model = VehicleInsurance;
-                    populateFields = ['claimForm', 'vehicleIdentity', 'damageImage', 'recipt'];
-                    break;
-
-                case "LifeInsurance":
-                    Model = LifeInsurance;
-                    populateFields = [
-                        'insuranceClaimForm',
-                        'nominee.passBook',
-                        'policyDocument',
-                        'deathCert',
-                        'hospitalDocument',
-                        'fir'
-                    ];
-                    break;
-
-                case "HealthInsurance":
-                    Model = HealthInsurance;
-                    populateFields = ['policyDocs', 'finalBill', 'passbook'];
-                    break;
-
-                default:
-                    return res.status(400).json({ message: "Unsupported policy model" });
+            if (policyModel !== "LifeInsurance") {
+                return res.status(400).json({ message: "Only LifeInsurance policies are supported" });
             }
 
-            const populatedClaim = await Model.findById(policyId).populate(populateFields.join(' '));
+            const populateFields = [
+                'insuranceClaimForm',
+                'nominee.passBook',
+                'policyDocument',
+                'deathCert',
+                'hospitalDocument',
+                'fir'
+            ];
+
+            const populatedClaim = await LifeInsurance.findById(policyId).populate(populateFields.join(' '));
 
             const docDetails = {};
 

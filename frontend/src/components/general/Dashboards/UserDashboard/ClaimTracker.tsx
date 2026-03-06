@@ -14,7 +14,7 @@ import {
 const ClaimTracker = () => {
 
   const [ClaimsData, setClaimsData] = useState([]);
-  const [aiResponse,setaiResponse] = useState([]);
+  const [aiResponse,setaiResponse] = useState<Record<string, any>>({});
   const [aiInfoMap, setAiInfoMap] = useState<Record<string, Record<string, string>>>({
     "123456": {
       "Risk Score": "78%",
@@ -30,13 +30,15 @@ const ClaimTracker = () => {
     }
   });
 
+  const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
+
   const fetchAiResponse = async (id: string) => {
     try {
       const token = localStorage.getItem('JWT');
       if (!token) throw new Error("Missing auth token");
   
       const response = await axios.get(
-        `${import.meta.env.VITE_BACKEND_URL}claim/getAIScore/${id}`,
+        `${base_url}/claim/getAIScore/${id}`,
         {
           headers: {
             token,
@@ -44,25 +46,38 @@ const ClaimTracker = () => {
         });
   
       if (response.status >= 200 && response.status < 300) {
-        console.log("Data : ",response.data);
-        setaiResponse(response.data);
+        console.log("Data : ", response.data);
 
+        // Normalize payload: prefer response.data.data when present
+        const payload = response.data?.data ?? response.data ?? {};
+
+        // Find insurer IRDAI for this claim id
         let uid: string | undefined;
-        for(let i=0;i<ClaimsData.length;i++){
-          if(ClaimsData[i].claim._id === id){
+        for (let i = 0; i < ClaimsData.length; i++) {
+          if (ClaimsData[i].claim._id === id) {
             uid = ClaimsData[i].claim.insurerIrdai;
-            console.log(uid);
+            break;
           }
         }
 
+        // Fallback to claim id if insurer id not found
+        const mapKey = uid || id;
 
-        setAiInfoMap((prev) => ({
-          ...prev,
-          [uid]: response.data,
-        }));
+        // Build a string-friendly map for UI rendering
+        const normalizedForUI: Record<string, string> = {};
+        Object.entries(payload).forEach(([k, v]) => {
+          if (Array.isArray(v)) normalizedForUI[k] = v.join(", ");
+          else if (typeof v === "object" && v !== null) normalizedForUI[k] = JSON.stringify(v);
+          else normalizedForUI[k] = String(v ?? "");
+        });
 
+        // Store raw payload keyed by insurer id (or claim id) if needed elsewhere
+        setaiResponse((prev) => ({ ...prev, [mapKey]: payload }));
 
-        return response.data;
+        // Store formatted strings for display
+        setAiInfoMap((prev) => ({ ...prev, [mapKey]: normalizedForUI }));
+
+        return payload;
       } else {
         console.warn("Unexpected response status:", response.status);
       }
@@ -157,7 +172,7 @@ const ClaimTracker = () => {
         console.log(uid);
       }
     }
-    const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/claim/submit/${uid}`, {
+    const res = await fetch(`${base_url}/claim/submit/${uid}`, {
       method : 'POST',
       headers : {
         'token' : localStorage.getItem("JWT")

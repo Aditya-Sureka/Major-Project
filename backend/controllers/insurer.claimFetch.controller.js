@@ -1,8 +1,7 @@
 import Insurer from "../models/insurer.model.js";
 import Claim from "../models/claim.model.js";
-import VehicleInsurance from "../models/vehicleInsurance.model.js";
 import LifeInsurance from "../models/lifeInsurance.model.js";
-import HealthInsurance from "../models/healthInsurance.model.js";
+// Vehicle and Health related logic removed — only LifeInsurance supported
 
 class FetchClaimController {
 
@@ -51,13 +50,11 @@ class FetchClaimController {
             const insuranceId = claimRecord.policyId;
             const insuranceModel = claimRecord.policyModel;
 
-            let Model;
-            if (insuranceModel === "VehicleInsurance") Model = VehicleInsurance;
-            else if (insuranceModel === "LifeInsurance") Model = LifeInsurance;
-            else if (insuranceModel === "HealthInsurance") Model = HealthInsurance;
-            else {
-                throw new Error("Unknown Policy Type");
+            if (insuranceModel !== "LifeInsurance") {
+                return res.status(400).json({ message: "Only LifeInsurance policies are supported" });
             }
+
+            const Model = LifeInsurance;
 
             const insuranceRecord = await Model.findById(insuranceId);
 

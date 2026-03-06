@@ -1,8 +1,8 @@
 import getAIInsights from "../services/getAIInsights.service.js";
 import Claim from "../models/claim.model.js";
-import VehicleInsurance from "../models/vehicleInsurance.model.js";
 import LifeInsurance from "../models/lifeInsurance.model.js";
-import HealthInsurance from "../models/healthInsurance.model.js";
+
+// Vehicle and Health related logic removed — only LifeInsurance supported
 
 class RiskEngineController {
 
@@ -16,49 +16,20 @@ class RiskEngineController {
                 return res.status(404).json({ message: "No Claims Found" });
             }
 
-            const insuranceId = claimRecord.policyId;
-            const insuranceModel = claimRecord.policyModel;
-
-            let Model;
-            let populateFields = [];
-
-            switch (insuranceModel) {
-
-                case (VehicleInsurance):
-                    Model = VehicleInsurance;
-                    populateFields = ['claimForm', 'vehicleIdentity', 'damageImage', 'recipt']
-                    break;
-
-                case (LifeInsurance):
-                    Model = LifeInsurance;
-                    populateFields = [
-                        'insuranceClaimForm',
-                        'nominee.passBook',
-                        'policyDocument',
-                        'deathCert',
-                        'hospitalDocument',
-                        'fir'
-                    ];
-                    break;
-
-                case (HealthInsurance):
-                    Model = HealthInsurance;
-                    populateFields = ['policyDocs', 'finalBill', 'passbook'];
-                    break;
-                
-                default :
-                    throw new Error("Unknown Policy")
-            }
-            
-
-
-            const query = await Model.findById(insuranceId);
-
-            for(const field of populateFields){
-                query = query.populate(field);
+            if (claimRecord.policyModel !== 'LifeInsurance') {
+                return res.status(400).json({ message: 'Only Life Insurance supported for risk evaluation' });
             }
 
-            const insuranceDoc = await query;
+            const populateFields = [
+                'insuranceClaimForm',
+                'nominee.passBook',
+                'policyDocument',
+                'deathCert',
+                'hospitalDocument',
+                'fir'
+            ];
+
+            const insuranceDoc = await LifeInsurance.findById(claimRecord.policyId).populate(populateFields);
 
             if (!insuranceDoc) {
                 return res.status(404).json({ message: "Policy Not found" });
@@ -66,7 +37,7 @@ class RiskEngineController {
 
             const insuranceRecord = {
                 ...insuranceDoc.toObject(),
-                policyModel: insuranceModel
+                policyModel: 'LifeInsurance'
             }
 
             const responseFromAi = await getAIInsights.evaluateRisk(insuranceRecord);
@@ -77,8 +48,8 @@ class RiskEngineController {
 
             claimRecord.aiScore = responseFromAi.aiScore;
             claimRecord.aiConfidence = responseFromAi.aiConfidence;
-            claimRecord.riskFactors = responseFromAi.riskFactors;
-            claimRecord.aiSuggestions = responseFromAi.aiSuggestions;
+            claimRecord.riskFactors = responseFromAi.riskFactors || [];
+            claimRecord.aiSuggestions = Array.isArray(responseFromAi.aiSuggestions) ? responseFromAi.aiSuggestions : (responseFromAi.aiSuggestions ? [String(responseFromAi.aiSuggestions)] : []);
 
             await claimRecord.save();
 
@@ -102,41 +73,20 @@ class RiskEngineController {
                 return res.status(404).json({ message: "No claim found with that ID" });
             }
 
-            const { policyId, policyModel } = claimRecord;
-
-            let Model;
-            let populateFields = [];
-
-            switch (policyModel) {
-
-                case "VehicleInsurance":
-                    Model = VehicleInsurance;
-                    populateFields = ['claimForm', 'vehicleIdentity', 'damageImage', 'recipt'];
-                    break;
-
-                case "LifeInsurance":
-                    Model = LifeInsurance;
-                    populateFields = [
-                        'insuranceClaimForm',
-                        'nominee.passBook',
-                        'policyDocument',
-                        'deathCert',
-                        'hospitalDocument',
-                        'fir'
-                    ];
-                    break;
-
-                case "HealthInsurance":
-                    Model = HealthInsurance;
-                    populateFields = ['policyDocs', 'finalBill', 'passbook'];
-                    break;
-
-                default:
-                    return res.status(400).json({ message: "Unsupported policy model" });
+            if (claimRecord.policyModel !== 'LifeInsurance') {
+                return res.status(400).json({ message: 'Unsupported policy model for fraud detection' });
             }
 
+            const populateFields = [
+                'insuranceClaimForm',
+                'nominee.passBook',
+                'policyDocument',
+                'deathCert',
+                'hospitalDocument',
+                'fir'
+            ];
 
-            let query = Model.findById(policyId);
+            let query = LifeInsurance.findById(claimRecord.policyId);
 
             for (const field of populateFields) {
                 query = query.populate(field);
@@ -150,7 +100,7 @@ class RiskEngineController {
 
             const insuranceRecord = {
                 ...insuranceDoc.toObject(),
-                policyModel
+                policyModel: 'LifeInsurance'
             };
 
             console.log(insuranceRecord);
@@ -160,10 +110,10 @@ class RiskEngineController {
                 return res.status(500).json({ message: "Failed to get response from AI service" });
             }
 
-            claimRecord.aiScore = responseFromAi.aiScore;
-            claimRecord.aiConfidence = responseFromAi.aiConfidence;
-            claimRecord.aiSuggestions = responseFromAi.aiSuggestions;
-            claimRecord.riskFactors = responseFromAi.riskFactors;
+            claimRecord.aiScore = responseFromAi.aiScore || null;
+            claimRecord.aiConfidence = responseFromAi.aiConfidence || null;
+            claimRecord.aiSuggestions = responseFromAi.aiSuggestions || [];
+            claimRecord.riskFactors = responseFromAi.riskFactors || [];
 
             await claimRecord.save();
 

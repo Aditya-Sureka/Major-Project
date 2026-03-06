@@ -4,9 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Upload, Shield } from "lucide-react";
 import { Info } from 'lucide-react';
-import { HealthInsuranceForm } from '../../forms/HealthForm';
 import { LifeInsuranceForm } from '../../forms/lifeform';
-import { VehicleInsuranceForm } from '../../forms/vehicleForm';
 
 const PolicySection = () => {
   const [insuranceType, setInsuranceType] = useState("Life insurance");
@@ -27,48 +25,19 @@ const PolicySection = () => {
   };
 
   const renderForm = () => {
-    switch (insuranceType) {
-      case "Life insurance":
-        return <LifeInsuranceForm onSubmit={(formData) => setinsuranceFormData(formData)}/>;
-      case "Health insurance":
-        return <HealthInsuranceForm onSubmit={(formData) => setinsuranceFormData(formData)}/>;
-      case "Vehicle insurance":
-        return <VehicleInsuranceForm onSubmit={(formData) => setinsuranceFormData(formData)}/>;
-      default:
-        return null;
-    }
+    return <LifeInsuranceForm onSubmit={(formData) => setinsuranceFormData(formData)}/>;
   };
 
   const fileUploadContents = () => {
-    switch (insuranceType) {
-      case "Life insurance":
-        return [
-          "insuranceClaimForm",
-          "passBook",
-          "policyDocument",
-          "deathCert",
-          "hospitalDocument",
-          "fir",
-        ];
-        break;
-      case "Health insurance":
-        return [
-          "policyDocs",
-          "finalBill",
-          "medicalDocs",
-        ];
-        break;
-      case "Vehicle insurance":
-        return [
-          "claimForm",
-          "vehicleIdentity",
-          "damageImage",
-          "recipt"
-        ];
-        break;
-      default:
-        return null;
-    }
+    // Only life insurance file fields remain
+    return [
+      "insuranceClaimForm",
+      "passBook",
+      "policyDocument",
+      "deathCert",
+      "hospitalDocument",
+      "fir",
+    ];
   }
 
   const buildFormData = (
@@ -114,30 +83,22 @@ const PolicySection = () => {
       console.log(`${key}:`, value);
     }
     const routes = {
-      'Health insurance': '/check/healthInsurance',
       'Life insurance': '/check/lifeInsurance',
-      'Vehicle insurance': '/check/vehicleInsurance',
     };
   
     // Ensure insuranceType is available from state or passed in
     const jwt = localStorage.getItem("JWT");
   
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}${routes[insuranceType]}`, {
-
+      const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
+      const response = await fetch(`${base_url}${routes[insuranceType]}`, {
         method: 'POST',
-      
         headers: {
-      
           'token': jwt || '', // ✅ if your backend is using this custom header
-      
         },
-      
         credentials: "include", // ✅ if using cookies for session
-      
         body: formData,
-      
-    });
+      });
   
       const data = await response.json();
       console.log("Server response:", data);
@@ -152,20 +113,8 @@ const PolicySection = () => {
     }
   };
 
-  const getDocumentInfo = (type: string) => {
-    switch (type) {
-      case "Life insurance":
-        return "Upload the policy bond or e-policy PDF issued by your insurer.";
-        break;
-      case "Health insurance":
-        return "Upload the health policy document or insurance card (TPA).";
-        break;
-      case "Vehicle insurance":
-        return "Upload the motor insurance certificate (Form 51) or RC with policy reference.";
-        break;
-      default:
-        return "";
-    }
+  const getDocumentInfo = () => {
+    return "Upload the policy bond or e-policy PDF issued by your insurer.";
   };
 
   // const coverageData = [
@@ -197,16 +146,14 @@ const PolicySection = () => {
             value={insuranceType}
             onChange={(e) => setInsuranceType(e.target.value)}
           >
-            <option>Life insurance</option>
-            <option>Health insurance</option>
-            <option>Vehicle insurance</option>
+                    <option>Life insurance</option>
           </select>
         </div>
 
         {/* Description */}
         <CardDescription className="my-8 flex items-start text-gray-600">
           <Info className="w-4 h-4 text-red-500 mt-1 mr-2 text-base" />
-          {getDocumentInfo(insuranceType)}
+          {getDocumentInfo()}
         </CardDescription>
 
                 {/* Render Form */}

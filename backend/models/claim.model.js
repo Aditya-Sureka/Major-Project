@@ -9,7 +9,7 @@ const claimSchema = new mongoose.Schema({
 
     policyType: {
         type: String,
-        enum: ['life-insurance', 'vehicle-insurance', 'health-insurance'],
+        enum: ['life-insurance'],
         required: true
     },
     policyId: {
@@ -19,7 +19,7 @@ const claimSchema = new mongoose.Schema({
     policyModel: {
         type: String,
         required: true,
-        enum: ['LifeInsurance', 'VehicleInsurance', 'HealthInsurance']
+        enum: ['LifeInsurance']
     },
 
     claimDocs: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Upload' }],
@@ -30,7 +30,7 @@ const claimSchema = new mongoose.Schema({
     },
     aiScore: { type: Number, min: 0, max: 100 },
     aiConfidence: { type: Number },
-    aiSuggestions: { type: String },
+    aiSuggestions: { type: [String], default: [] },
     fraudFlag: { type: Boolean, default: false },
     riskFactors : [{
         description : String,

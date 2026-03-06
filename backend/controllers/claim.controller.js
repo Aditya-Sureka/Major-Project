@@ -1,6 +1,4 @@
-import VehicleInsurance from "../models/vehicleInsurance.model.js";
 import LifeInsurance from "../models/lifeInsurance.model.js";
-import HealthInsurance from "../models/healthInsurance.model.js";
 import Claim from "../models/claim.model.js";
 import Insurer from "../models/insurer.model.js";
 import handleMultipleUploads from "../utils/handleFileUpload.js";
@@ -8,63 +6,7 @@ import getAIInsights from "../services/getAIInsights.service.js";
 import Upload from "../models/upload.model.js";
 
 class ClaimController {
-  async claimVehicleInsurance(req, res) {
-    try {
-      const fileMetaMap = await handleMultipleUploads(req);
-
-      const firebaseUid = req.user.firebaseUid;
-
-      const {
-        insurerIrdai,
-        uin,
-        regNo,
-        drivingLisence,
-        ownerName,
-        email,
-        govtId,
-        claimAmt,
-      } = req.body;
-
-      const newVehicleInsurance = await VehicleInsurance.create({
-        firebaseUid: firebaseUid,
-        claimForm: fileMetaMap?.claimForm?.[0]?._id || null,
-        uin,
-        regNo,
-        drivingLisence,
-        ownerName,
-        email,
-        govtId,
-        claimAmt,
-        claimForm: fileMetaMap?.claimForm?.[0]?._id || null,
-        vehicleIdentity:
-          fileMetaMap?.vehicleIdentity?.map((f) => f._id) || null,
-        damageImage: fileMetaMap?.damageImage?.map((f) => f._id) || null,
-        recipt: fileMetaMap?.recipt?.[0]?._id || null,
-      });
-
-      const newClaim = await Claim.create({
-        insurerIrdai,
-        firebaseUid: firebaseUid,
-        policyType: "vehicle-insurance",
-        policyId: newVehicleInsurance._id,
-        policyModel: "VehicleInsurance",
-      });
-
-      return res.status(200).json({
-        message: "Vehicle Insurance created for Claim Check",
-        data: {
-          vehicleInsurance: newVehicleInsurance,
-          newClaim: newClaim,
-        },
-      });
-    } catch (err) {
-      console.log(err.message);
-      return res.status(500).json({
-        message: "Failed to create a new claim for Claim Check",
-        error: err.message,
-      });
-    }
-  }
+  // Vehicle and Health claim endpoints removed — only Life Insurance supported
 
   async claimLifeInsurance(req, res) {
     try {
@@ -164,140 +106,9 @@ class ClaimController {
     }
   }
 
-  async claimHealthInsurance(req, res) {
-    try {
-      console.log("Claim Health Insurance", req.body, "\n", req.files);
-      const fileMetaMap = await handleMultipleUploads(req);
-      const firebaseUid = req.user.firebaseUid;
+  // Health claim endpoints removed — only Life Insurance supported
 
-      const {
-        insurerIrdai,
-        uin,
-        policyNumber,
-        policyHolderName,
-        gender,
-        dob,
-        email,
-        phone,
-        hospitalName,
-        totalClaimAmt,
-        govtId,
-      } = req.body;
-
-      const newHealthInsurance = await HealthInsurance.create({
-        firebaseUid,
-        uin,
-        policyNumber,
-        policyHolderName,
-        gender,
-        dob,
-        email,
-        phone,
-        hospitalName,
-        totalClaimAmt,
-        govtId,
-        policyDocs: fileMetaMap?.policyDocs?.[0]?._id || null,
-        finalBill: fileMetaMap?.finalBill?.[0]?._id || null,
-        medicalDocs: fileMetaMap?.medicalDocs?.[0]?._id || null,
-      });
-
-      const newClaim = await Claim.create({
-        insurerIrdai,
-        firebaseUid,
-        policyType: "health-insurance",
-        policyId: newHealthInsurance._id,
-        policyModel: "HealthInsurance",
-      });
-
-      return res.status(201).json({
-        message: "Health insurance claim successfully created",
-        data: {
-          healthInsurance: newHealthInsurance,
-          checkPolicyCoverage: newClaim,
-        },
-      });
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({
-        message: "Failed to create health insurance claim",
-        error: err.message,
-      });
-    }
-  }
-
-  async editVehicleInsurance(req, res) {
-    try {
-      const { id } = req.params;
-
-      const fileMetaMap = await handleMultipleUploads(req);
-
-      const firebaseUid = req.user.firebaseUid;
-
-      const {
-        insurerIrdai,
-        uin,
-        regNo,
-        drivingLisence,
-        ownerName,
-        email,
-        govtId,
-      } = req.body;
-
-      const claimRecord = await Claim.findById(id);
-
-      if (!claimRecord) {
-        return res.status(404).json({ message: "Claim Not Found" });
-      }
-
-      const insuranceId = claimRecord.policyId;
-
-      const insuranceRecord = await VehicleInsurance.findByIdAndUpdate(
-        insuranceId,
-        {
-          $set: {
-            firebaseUid: firebaseUid,
-            claimForm: fileMetaMap?.claimForm?.[0]?._id || null,
-            uin,
-            regNo,
-            drivingLisence,
-            ownerName,
-            email,
-            govtId,
-            claimForm: fileMetaMap?.claimForm?.[0]?._id || null,
-            vehicleIdentity:
-              fileMetaMap?.vehicleIdentity?.map((f) => f._id) || null,
-            damageImage: fileMetaMap?.damageImage?.map((f) => f._id) || null,
-            recipt: fileMetaMap?.recipt?.[0]?._id || null,
-          },
-        },
-        { new: true, upsert: true }
-      );
-
-      claimRecord = await Claim.findByIdAndUpdate(
-        id,
-        {
-          $set: {
-            insurerIrdai,
-          },
-        },
-        { new: true }
-      );
-
-      return res.status(200).json({
-        message: "Vehicle Insurance updated for for Claim",
-        data: {
-          vehicleInsurance: insuranceRecord,
-          newClaim: claimRecord,
-        },
-      });
-    } catch (err) {
-      console.log(err.message);
-      return res.status(500).json({
-        message: "Failed to update Claim ",
-        error: err.message,
-      });
-    }
-  }
+  // Vehicle edit endpoint removed — only Life Insurance supported
 
   async editLifeInsurance(req, res) {
     try {
@@ -390,81 +201,8 @@ class ClaimController {
     }
   }
 
-  async editHealthInsurance(req, res) {
-    try {
-      const { id } = req.params;
-      const firebaseUid = req.user.firebaseUid;
-      const fileMetaMap = await handleMultipleUploads(req);
-
-      const {
-        insurerIrdai,
-        uin,
-        policyNumber,
-        policyHolderName,
-        gender,
-        dob,
-        email,
-        phone,
-        hospitalName,
-        totalClaimAmt,
-        govtId,
-      } = req.body;
-
-      const claimRecord = await Claim.findById(id);
-      if (!claimRecord) {
-        return res.status(404).json({ message: "Claim Not Found" });
-      }
-
-      const insuranceId = claimRecord.policyId;
-
-      const insuranceRecord = await HealthInsurance.findByIdAndUpdate(
-        insuranceId,
-        {
-          $set: {
-            firebaseUid,
-            uin,
-            policyNumber,
-            policyHolderName,
-            gender,
-            dob,
-            email,
-            phone,
-            hospitalName,
-            totalClaimAmt,
-            govtId,
-            policyDocs: fileMetaMap?.policyDocs?.[0]?._id || null,
-            finalBill: fileMetaMap?.finalBill?.[0]?._id || null,
-            medicalDocs: fileMetaMap?.medicalDocs?.[0]?._id || null,
-          },
-        },
-        { new: true, upsert: true }
-      );
-
-      const updatedClaim = await Claim.findByIdAndUpdate(
-        id,
-        {
-          $set: {
-            insurerIrdai,
-          },
-        },
-        { new: true }
-      );
-
-      return res.status(200).json({
-        message: "Health Insurance updated for Claim",
-        data: {
-          healthInsurance: insuranceRecord,
-          updatedClaim,
-        },
-      });
-    } catch (err) {
-      console.error("Edit Health Insurance Error:", err.message);
-      return res.status(500).json({
-        message: "Failed to update health insurance claim",
-        error: err.message,
-      });
-    }
-  }
+  // Health edit endpoint removed — only Life Insurance supported
+ 
 
   async submitInsurance(req, res) {
     try {
@@ -524,32 +262,32 @@ class ClaimController {
           return res.status(404).json({ message: "Insurance Data not found" });
         }
 
-        aiResponse = await getAIInsights.getAIClaimCheckLife(insureDoc);
-      } else if (claimRecord.policyModel === "VehicleInsurance") {
-        Model = VehicleInsurance;
-        const insureDoc = await Model.findById(claimRecord.policyId);
-
-        if (!insureDoc) {
-          return res.status(404).json({ message: "Insurance Data not found" });
+        try {
+          aiResponse = await getAIInsights.getAIClaimCheckLife(insureDoc);
+        } catch (err) {
+          console.error("AI call failed in getScore:", err.message || err);
+          // Graceful fallback so frontend receives a safe response instead of 500
+          aiResponse = {
+            aiScore: null,
+            aiConfidence: null,
+            aiSuggestions: ["AI analysis failed or unavailable"]
+          };
         }
-
-        aiResponse = await getAIInsights.getAIClaimCheckVehicle(insureDoc);
-      } else if (claimRecord.policy === "HealthInsurance") {
-        Model = HealthInsurance;
-        const insureDoc = await Model.findById(claimRecord.policyId);
-
-        if (!insureDoc) {
-          return res.status(404).json({ message: "Insurance Data not found" });
-        }
-
-        aiResponse = await getAIInsights.getAIClaimCheckHealth(insureDoc);
       } else {
-        throw new Error("Unknown Policy");
+        // Only LifeInsurance is supported in this deployment
+        return res.status(400).json({ message: "Unsupported policy model" });
       }
 
-      claimRecord.aiScore = aiResponse.aiScore;
-      claimRecord.aiConfidence = aiResponse.aiConfidence;
-      claimRecord.aiSuggestions = aiResponse.aiSuggestions;
+      // Normalize AI response to avoid schema casting/validation issues
+      const normalizedAI = {
+        aiScore: aiResponse.aiScore == null ? null : Number(aiResponse.aiScore),
+        aiConfidence: aiResponse.aiConfidence == null ? null : Number(aiResponse.aiConfidence),
+        aiSuggestions: Array.isArray(aiResponse.aiSuggestions) ? aiResponse.aiSuggestions : (aiResponse.aiSuggestions ? [String(aiResponse.aiSuggestions)] : [])
+      };
+
+      claimRecord.aiScore = normalizedAI.aiScore;
+      claimRecord.aiConfidence = normalizedAI.aiConfidence;
+      claimRecord.aiSuggestions = normalizedAI.aiSuggestions;
 
       await claimRecord.save();
 
@@ -586,18 +324,12 @@ class ClaimController {
       for (const claim of claimRecords) {
         const insuranceId = claim.policyId;
 
-        let Model;
-        if (claim.policyModel === "LifeInsurance") Model = LifeInsurance;
-        else if (claim.policyModel === "VehicleInsurance")
-          Model = VehicleInsurance;
-        else if (claim.policyModel === "HealthInsurance")
-          Model = HealthInsurance;
-        else {
-          console.warn("Unknown policy model:", claim.policyModel);
+        if (claim.policyModel !== "LifeInsurance") {
+          console.warn("Skipping non-life policy:", claim.policyModel);
           continue;
         }
 
-        const insuranceDetails = await Model.findById(insuranceId);
+        const insuranceDetails = await LifeInsurance.findById(insuranceId);
         console.log(insuranceDetails);
 
         claimArray.push({
@@ -631,16 +363,11 @@ class ClaimController {
 
       const insuranceId = claimRecord.policyId;
 
-      let Model;
-      if (claimRecord.policyModel === "LifeInsurance") Model = LifeInsurance;
-      else if (claimRecord.policyModel === "VehicleInsurance")
-        Model = VehicleInsurance;
-      // else if (claim.policyModel === "HealthInsurance") Model = HealthInsurance;
-      else {
-        throw new Error("Unknown Policy");
+      if (claimRecord.policyModel !== "LifeInsurance") {
+        return res.status(400).json({ message: "Only LifeInsurance claims are supported" });
       }
 
-      const insuranceDetails = await Model.findById(insuranceId);
+      const insuranceDetails = await LifeInsurance.findById(insuranceId);
 
       if (!claimRecord) {
         return res
@@ -663,116 +390,64 @@ class ClaimController {
 
   async evaluateRisk(req, res) {
     const { id } = req.params;
-    console.log("Get Score", id);
 
     try {
       const claimRecord = await Claim.findById(id);
-      let Model;
-      let populateFields;
 
       if (!claimRecord) {
         return res.status(404).json({ message: "No record of claims found" });
       }
 
-      if (claimRecord.policyModel === "LifeInsurance") {
-        Model = LifeInsurance;
-        populateFields = [
-          "insuranceClaimForm",
-          "policyDocument",
-          "deathCert",
-          "hospitalDocument",
-          "fir",
-          "nominee.passBook",
-        ];
-      } else if (claimRecord.policyModel === "VehicleInsurance") {
-        Model = VehicleInsurance;
-        populateFields = [
-          "claimForm",
-          "vehicleIdentity",
-          "damageImage",
-          "recipt",
-        ];
-      } else if (claimRecord.policyModel === "HealthInsurance") {
-        Model = HealthInsurance;
-        populateFields = ["policyDocs", "finalBill", "medicalDocs"];
-      } else {
-        return res.status(400).json({ message: "Unknown policy model" });
+      if (claimRecord.policyModel !== "LifeInsurance") {
+        return res.status(400).json({ message: "Risk evaluation only supported for Life Insurance" });
       }
 
-      let aiResponse;
-      let insureDoc;
-      if (claimRecord.policyModel === "LifeInsurance") {
-        Model = LifeInsurance;
-        insureDoc = await Model.findById(claimRecord.policyId).populate(
-          populateFields
-        );
+      const populateFields = [
+        "insuranceClaimForm",
+        "policyDocument",
+        "deathCert",
+        "hospitalDocument",
+        "fir",
+        "nominee.passBook",
+      ];
 
-        if (!insureDoc) {
-          return res.status(404).json({ message: "Insurance Data not found" });
-        }
+      const insureDoc = await LifeInsurance.findById(claimRecord.policyId).populate(populateFields);
 
-        aiResponse = await getAIInsights.evaluateRiskHealth(insureDoc);
-      } else if (claimRecord.policyModel === "VehicleInsurance") {
-        Model = VehicleInsurance;
-        insureDoc = await Model.findById(claimRecord.policyId).populate(
-          populateFields
-        );
-
-        if (!insureDoc) {
-          return res.status(404).json({ message: "Insurance Data not found" });
-        }
-
-        aiResponse = await getAIInsights.evaluateRiskVehicle(insureDoc);
-      } else if (claimRecord.policyModel === "HealthInsurance") {
-        Model = HealthInsurance;
-        insureDoc = await Model.findById(claimRecord.policyId).populate(
-          populateFields
-        );
-
-        if (!insureDoc) {
-          return res.status(404).json({ message: "Insurance Data not found" });
-        }
-
-        aiResponse = await getAIInsights.evaluateRiskHealth(insureDoc);
-      } else {
-        throw new Error("Unknown Policy");
+      if (!insureDoc) {
+        return res.status(404).json({ message: "Insurance Data not found" });
       }
+
+      const aiResponse = await getAIInsights.evaluateRisk(insureDoc);
 
       if (!aiResponse) {
         return res.status(400).json({ message: "AI analysis failed" });
       }
 
-      const badFiles = aiResponse.suspicious_files;
+      const badFiles = aiResponse.suspicious_files || [];
       for (const fileObj of badFiles) {
-        // Extract the file path from the object structure
-        const id = fileObj._id;
-        const fileRecord = await Upload.findById(id);
-        if (!fileRecord) {
-          return res.status(404).json({ message: "File not found" });
-        }
+        const fileId = fileObj._id;
+        const fileRecord = await Upload.findById(fileId);
+        if (!fileRecord) continue;
         fileRecord.fraudFlag = true;
         await fileRecord.save();
       }
 
-      const risk_factors = aiResponse.risk_factors;
-      // Ensure riskFactors is initialized as an array
-      if (!claimRecord.risk_factors) {
-        claimRecord.risk_factors = [];
-      }
-      for (const risk_factor of risk_factors) {
-        claimRecord.risk_factors.push(risk_factor);
-      }
+      claimRecord.risk_factors = (claimRecord.risk_factors || []).concat(aiResponse.risk_factors || []);
       await claimRecord.save();
 
       return res.status(200).json({
-        message: "AI analysis completed",
-        data: aiResponse,
+        message: "Risk evaluated and flagged files updated",
+        data: {
+          risk_factors: aiResponse.risk_factors || [],
+          suspicious_files: aiResponse.suspicious_files || [],
+        },
       });
     } catch (err) {
-      console.error("AI Analysis Error:", err.message);
-      return res
-        .status(500)
-        .json({ message: "AI processing failed", error: err.message });
+      console.error(err.message);
+      return res.status(500).json({
+        message: "Risk evaluation failed",
+        error: err.message,
+      });
     }
   }
 }

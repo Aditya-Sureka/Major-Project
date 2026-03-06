@@ -33,7 +33,8 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
    useEffect(() => {
       const fetchClaimHistory = async() => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}claim/getAllClaims`, {
+        const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
+        const response = await fetch(`${base_url}/claim/getAllClaims`, {
           method : 'GET',
           headers : {
             'token' : localStorage.getItem("JWT")

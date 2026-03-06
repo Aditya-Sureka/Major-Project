@@ -8,7 +8,7 @@ const checkPolicyCoverageSchema = new mongoose.Schema({
     },
     policyType: {
         type: String,
-        enum: ['life-insurance', 'vehicle-insurance', 'health-insurance'],
+        enum: ['life-insurance'],
         required: true
     },
     details: {
@@ -19,11 +19,11 @@ const checkPolicyCoverageSchema = new mongoose.Schema({
     policyModel: {
         type: String,
         required: true,
-        enum: ['LifeInsurance', 'VehicleInsurance', 'HealthInsurance']
+        enum: ['LifeInsurance']
     },
     aiScore: Number,
     aiConfidence: Number,
-    aiSuggestions: String,
+    aiSuggestions: { type: [String], default: [] },
     createdAt: {
         type: Date,
         default: Date.now
