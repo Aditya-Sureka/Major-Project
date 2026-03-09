@@ -2,6 +2,16 @@ import fs from 'fs';
 import Upload from '../models/upload.model.js'
 import uploadToCloudinary from '../services/cloudinary.service.js';
 
+async function safeUnlink(filePath) {
+    if (!filePath) return;
+    try {
+        await fs.promises.unlink(filePath);
+    } catch (err) {
+        if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) return;
+        console.warn("Failed to delete temp file:", filePath, err?.message || err);
+    }
+}
+
 class UploadController {
     async uploadFile(req, res) {
         try {
@@ -17,7 +27,7 @@ class UploadController {
 
             const result = await uploadToCloudinary(filePath, fileType);
 
-            fs.unlinkSync(filePath);
+            await safeUnlink(filePath);
 
             const uploadRecord = await Upload.create({
                 uploadedBy : req.user.firebaseUid,
@@ -33,6 +43,7 @@ class UploadController {
             });
         }catch(err) {
             console.log(err?.message);
+            await safeUnlink(req?.file?.path);
             return res.status(500).json({
                 message : 'Upload failed',
                 error : err?.message

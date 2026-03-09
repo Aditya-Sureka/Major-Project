@@ -93,6 +93,20 @@ const ClaimSubmission = () => {
       transformed.nomineeBankName = nominee.bankName || '';
       // Remove the nested nominee object
       delete transformed.nominee;
+      
+      // Handle ML model fields - convert empty strings to undefined so backend can handle defaults
+      const mlFields = ['age', 'sex', 'bmi', 'children', 'smoker', 'region', 'charges'];
+      mlFields.forEach(field => {
+        if (transformed[field] === '' || transformed[field] === null) {
+          // Keep default values for sex, children, smoker, region (they have defaults)
+          if (field === 'sex' || field === 'children' || field === 'smoker' || field === 'region') {
+            // Keep the default value from form (already set to "0")
+          } else {
+            // For age, bmi, charges - set to undefined so backend can handle null
+            transformed[field] = undefined;
+          }
+        }
+      });
     }
     
     return transformed;

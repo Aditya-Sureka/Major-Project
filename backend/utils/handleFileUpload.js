@@ -2,6 +2,17 @@ import uploadToCloudinary from "../services/cloudinary.service.js";
 import fs from "fs";
 import Upload from "../models/upload.model.js";
 
+async function safeUnlink(filePath) {
+  if (!filePath) return;
+  try {
+    await fs.promises.unlink(filePath);
+  } catch (err) {
+    // If the file was already removed (or never existed), ignore.
+    if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) return;
+    console.warn("Failed to delete temp file:", filePath, err?.message || err);
+  }
+}
+
 async function handleMultipleUploads(req, resourceType = "raw") {
   if (!req.files || Object.keys(req.files).length === 0) return {};
 
@@ -20,7 +31,7 @@ async function handleMultipleUploads(req, resourceType = "raw") {
           (file.mimetype.startsWith("image/") ? "image" : "raw");
         const result = await uploadToCloudinary(filePath, type);
 
-        fs.unlinkSync(filePath);
+        await safeUnlink(filePath);
 
         const savedUpload = await Upload.create({
           uploadedBy,
@@ -32,8 +43,8 @@ async function handleMultipleUploads(req, resourceType = "raw") {
 
         uploadedFiles[fieldName].push(savedUpload);
       } catch (err) {
-        fs.unlinkSync(filePath);
-        console.error(`Failed to upload ${file.originalname}: ${err.message}`);
+        await safeUnlink(filePath);
+        console.error(`Failed to upload ${file.originalname}: ${err?.message || err}`);
       }
     }
   }

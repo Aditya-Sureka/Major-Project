@@ -27,7 +27,15 @@ class CheckCoverageController {
                 nomineeGovtId,
                 nomineeAccountNo,
                 nomineeIFSC,
-                nomineeBankName
+                nomineeBankName,
+                // ML Model Features
+                age,
+                sex,
+                bmi,
+                children,
+                smoker,
+                region,
+                charges
             } = req.body;
 
             const newLifeInsurance = await LifeInsurance.create({
@@ -53,7 +61,15 @@ class CheckCoverageController {
                     IFSC: nomineeIFSC,
                     bankName: nomineeBankName,
                     passBook: fileMetaMap?.passBook?.[0]?._id || null
-                }
+                },
+                // ML Model Features
+                age: age ? Number(age) : null,
+                sex: sex !== undefined ? Number(sex) : null,
+                bmi: bmi ? Number(bmi) : null,
+                children: children !== undefined ? Number(children) : 0,
+                smoker: smoker !== undefined ? Number(smoker) : 0,
+                region: region !== undefined ? Number(region) : 0,
+                charges: charges ? Number(charges) : null
             });
 
             const newClaimCheck = await CheckPolicyCoverage.create({

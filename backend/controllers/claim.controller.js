@@ -42,6 +42,14 @@ class ClaimController {
         nomineeAccountNo,
         nomineeIFSC,
         nomineeBankName,
+        // ML Model Features
+        age,
+        sex,
+        bmi,
+        children,
+        smoker,
+        region,
+        charges,
       } = req.body;
 
       // Validate required fields
@@ -78,6 +86,14 @@ class ClaimController {
           bankName: nomineeBankName,
           passBook: fileMetaMap?.passBook?.[0]?._id || null,
         },
+        // ML Model Features
+        age: age ? Number(age) : null,
+        sex: sex !== undefined ? Number(sex) : null,
+        bmi: bmi ? Number(bmi) : null,
+        children: children !== undefined ? Number(children) : 0,
+        smoker: smoker !== undefined ? Number(smoker) : 0,
+        region: region !== undefined ? Number(region) : 0,
+        charges: charges ? Number(charges) : (claimAmt ? Number(claimAmt) : null),
       });
 
       const newClaim = await Claim.create({
@@ -138,6 +154,14 @@ class ClaimController {
         nomineeAccountNo,
         nomineeIFSC,
         nomineeBankName,
+        // ML Model Features
+        age,
+        sex,
+        bmi,
+        children,
+        smoker,
+        region,
+        charges,
       } = req.body;
 
       const insuranceId = claimRecord.policyId;
@@ -170,6 +194,14 @@ class ClaimController {
               bankName: nomineeBankName,
               passBook: fileMetaMap?.passBook?.[0]?._id || null,
             },
+            // ML Model Features
+            ...(age !== undefined && { age: Number(age) }),
+            ...(sex !== undefined && { sex: Number(sex) }),
+            ...(bmi !== undefined && { bmi: Number(bmi) }),
+            ...(children !== undefined && { children: Number(children) }),
+            ...(smoker !== undefined && { smoker: Number(smoker) }),
+            ...(region !== undefined && { region: Number(region) }),
+            ...(charges !== undefined && { charges: Number(charges) }),
           },
         },
         { new: true, upsert: true }

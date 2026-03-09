@@ -45,6 +45,40 @@ const lifeInsuranceSchema = mongoose.Schema({
     fir : {
         type : mongoose.Schema.Types.ObjectId,
         ref : 'Upload'
+    },
+    // ML Model Features for Fraud Detection
+    age: {
+        type: Number,
+        min: 0,
+        max: 120
+    },
+    sex: {
+        type: Number,
+        enum: [0, 1] // 0 = female, 1 = male
+    },
+    bmi: {
+        type: Number,
+        min: 0,
+        max: 100
+    },
+    children: {
+        type: Number,
+        min: 0,
+        default: 0
+    },
+    smoker: {
+        type: Number,
+        enum: [0, 1], // 0 = non-smoker, 1 = smoker
+        default: 0
+    },
+    region: {
+        type: Number,
+        enum: [0, 1, 2, 3], // 0 = northeast, 1 = northwest, 2 = southeast, 3 = southwest
+        default: 0
+    },
+    charges: {
+        type: Number,
+        min: 0 // Claim amount in rupees
     }
 })
 

@@ -31,6 +31,14 @@ interface LifeInsuranceFormData {
   causeOfDeath: string;
   insurerIrdai: string;
   nominee: NomineeData;
+  // ML Model Features for Fraud Detection
+  age: string;
+  sex: string;
+  bmi: string;
+  children: string;
+  smoker: string;
+  region: string;
+  charges: string;
 }
 
 type LifeInsuranceFormProps = {
@@ -56,9 +64,17 @@ export const LifeInsuranceForm = ({ onSubmit }: LifeInsuranceFormProps) => {
       IFSC: "",
       bankName: "",
     },
+    // ML Model Features
+    age: "",
+    sex: "0",
+    bmi: "",
+    children: "0",
+    smoker: "0",
+    region: "0",
+    charges: "",
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name.startsWith("nominee.")) {
       const key = name.split(".")[1];
@@ -250,6 +266,114 @@ export const LifeInsuranceForm = ({ onSubmit }: LifeInsuranceFormProps) => {
             value={formData.nominee.bankName}
             onChange={handleChange}
           />
+        </div>
+      </div>
+    </div>
+
+    {/* ML Model Features Section */}
+    <div className="border-t pt-6 mt-6">
+      <h4 className="text-md font-semibold text-gray-700 mb-4 flex items-center">
+        <ScrollText className="w-4 h-4 mr-2 text-blue-600" />
+        Demographic Information (for AI Risk Assessment)
+      </h4>
+      <p className="text-sm text-gray-500 mb-4">
+        This information helps our AI model assess claim legitimacy and detect potential fraud.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <Label htmlFor="age">Age</Label>
+          <Input
+            id="age"
+            name="age"
+            type="number"
+            min="0"
+            max="120"
+            placeholder="e.g. 45"
+            value={formData.age}
+            onChange={handleChange}
+          />
+        </div>
+        <div>
+          <Label htmlFor="sex">Gender</Label>
+          <select
+            id="sex"
+            name="sex"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            value={formData.sex}
+            onChange={handleChange}
+          >
+            <option value="0">Female</option>
+            <option value="1">Male</option>
+          </select>
+        </div>
+        <div>
+          <Label htmlFor="bmi">BMI (Body Mass Index)</Label>
+          <Input
+            id="bmi"
+            name="bmi"
+            type="number"
+            step="0.1"
+            min="0"
+            max="100"
+            placeholder="e.g. 27.5"
+            value={formData.bmi}
+            onChange={handleChange}
+          />
+        </div>
+        <div>
+          <Label htmlFor="children">Number of Children</Label>
+          <Input
+            id="children"
+            name="children"
+            type="number"
+            min="0"
+            placeholder="e.g. 2"
+            value={formData.children}
+            onChange={handleChange}
+          />
+        </div>
+        <div>
+          <Label htmlFor="smoker">Smoking Status</Label>
+          <select
+            id="smoker"
+            name="smoker"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            value={formData.smoker}
+            onChange={handleChange}
+          >
+            <option value="0">Non-Smoker</option>
+            <option value="1">Smoker</option>
+          </select>
+        </div>
+        <div>
+          <Label htmlFor="region">Region</Label>
+          <select
+            id="region"
+            name="region"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            value={formData.region}
+            onChange={handleChange}
+          >
+            <option value="0">Northeast</option>
+            <option value="1">Northwest</option>
+            <option value="2">Southeast</option>
+            <option value="3">Southwest</option>
+          </select>
+        </div>
+        <div className="md:col-span-2">
+          <Label htmlFor="charges">Claim Amount (₹)</Label>
+          <Input
+            id="charges"
+            name="charges"
+            type="number"
+            min="0"
+            placeholder="e.g. 150000"
+            value={formData.charges}
+            onChange={handleChange}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Enter the total claim amount in Indian Rupees
+          </p>
         </div>
       </div>
     </div>

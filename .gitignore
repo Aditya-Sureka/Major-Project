@@ -8,3 +8,6 @@ backend/insuredsaathi-29f2f-firebase-adminsdk-fbsvc-e3cb6cb152.json
 pythonApi/training
 pythonApi/venv
 pythonApi/.env
+pythonApi/model_features.json
+pythonApi/life_insurance_fraud_model.pkl
+backend/uploads/*
