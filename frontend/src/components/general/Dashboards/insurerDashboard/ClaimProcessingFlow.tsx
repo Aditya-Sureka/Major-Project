@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Bot, FileCheck, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { AIRiskEvaluation } from './AiRiskEval';
 import { FraudDetection } from './FraudDetection';
@@ -22,13 +22,20 @@ interface ClaimData {
 interface ClaimProcessingFlowProps {
   selectedClaim: ClaimData | null;
   onBack: () => void;
+  onClaimUpdated?: (updated: ClaimData) => void;
 }
 
 export const ClaimProcessingFlow: React.FC<ClaimProcessingFlowProps> = ({
   selectedClaim,
   onBack,
+  onClaimUpdated,
 }) => {
   const [currentStage, setCurrentStage] = useState<string>('initial');
+  const [claimState, setClaimState] = useState<ClaimData | null>(selectedClaim);
+
+  useEffect(() => {
+    setClaimState(selectedClaim);
+  }, [selectedClaim]);
   // const [processStages, setProcessStages] = useState<ProcessStage[]>([
   //   { id: 'ai-risk', name: 'AI Risk Evaluation', status: 'pending', type: 'automated' },
   //   { id: 'fraud-detection', name: 'Fraud Detection', status: 'pending', type: 'automated' },
@@ -36,12 +43,44 @@ export const ClaimProcessingFlow: React.FC<ClaimProcessingFlowProps> = ({
   //   { id: 'decision', name: 'Decision Area', status: 'pending', type: 'manual' },
   // ]);
 
-    const processStages = [
-      { id: 'ai-risk', name: 'AI Risk Evaluation', status: 'pending', type: 'automated' },
-      { id: 'fraud-detection', name: 'Fraud Detection', status: 'pending', type: 'automated' },
-      { id: 'document-check', name: 'Document Check', status: 'pending', type: 'manual' },
-      { id: 'decision', name: 'Decision Area', status: 'pending', type: 'manual' },
-    ]
+  const deriveStageStatus = (stageId: string, claim: ClaimData | null) => {
+    if (!claim || !claim.claim?.status) return 'pending';
+    const status = claim.claim.status;
+
+    switch (stageId) {
+      case 'ai-risk': {
+        if (typeof (claim as any).claim?.aiScore === 'number') return 'completed';
+        if (status === 'Instantiated' || status === 'UnderReview') return 'processing';
+        return 'completed';
+      }
+      case 'fraud-detection': {
+        const hasRiskFactors = Array.isArray((claim as any).claim?.riskFactors) && (claim as any).claim?.riskFactors.length > 0;
+        if (hasRiskFactors) return 'completed';
+        if (status === 'UnderReview' || status === 'Submitted') return 'processing';
+        return status === 'Escalated' ? 'failed' : 'pending';
+      }
+      case 'document-check': {
+        if (status === 'Submitted' || status === 'Escalated') return 'processing';
+        if (status === 'Settled' || status === 'Rejected') return 'completed';
+        return 'pending';
+      }
+      case 'decision': {
+        if (status === 'Settled') return 'completed';
+        if (status === 'Rejected') return 'failed';
+        if (status === 'Submitted' || status === 'Escalated') return 'processing';
+        return 'pending';
+      }
+      default:
+        return 'pending';
+    }
+  };
+
+  const processStages = [
+    { id: 'ai-risk', name: 'AI Risk Evaluation', type: 'automated' as const },
+    { id: 'fraud-detection', name: 'Fraud Detection', type: 'automated' as const },
+    { id: 'document-check', name: 'Document Check', type: 'manual' as const },
+    { id: 'decision', name: 'Decision Area', type: 'manual' as const },
+  ];
 
   // const mockClaim = selectedClaim;
 
@@ -99,28 +138,54 @@ export const ClaimProcessingFlow: React.FC<ClaimProcessingFlowProps> = ({
   </div>
 
   {/* Claim Summary */}
-  {selectedClaim && (
+  {claimState && (
   <div className="bg-white border border-gray-300 p-6 rounded-lg">
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
       <div>
         <p className="text-sm text-gray-400">Claimant</p>
-        <p className="font-semibold text-black">{selectedClaim.insuranceDetails.ownerName || selectedClaim.insuranceDetails.policyHolderName }</p>
+        <p className="font-semibold text-black">
+          {claimState.insuranceDetails.ownerName || claimState.insuranceDetails.policyHolderName}
+        </p>
       </div>
       <div>
         <p className="text-sm text-gray-400">Type</p>
-        <p className="font-semibold text-black">{selectedClaim.claim.policyType}</p>
+        <p className="font-semibold text-black">{claimState.claim.policyType}</p>
       </div>
       <div>
         <p className="text-sm text-gray-400">Amount</p>
-        <p className="font-semibold text-black">${'####'}</p>
+        <p className="font-semibold text-black">
+          {typeof claimState.insuranceDetails?.charges === "number"
+            ? `₹${claimState.insuranceDetails.charges.toLocaleString()}`
+            : 'Amount not available'}
+        </p>
       </div>
       <div>
         <p className="text-sm text-gray-400">Priority</p>
         <p className={`font-semibold ${
-          getRandomPriority() === 'high' ? 'text-red-400' :
-          getRandomPriority() === 'medium' ? 'text-yellow-400' : 'text-green-400'
+          // simple deterministic priority based on claim status / AI score
+          (() => {
+            const status = claimState.claim.status;
+            const aiScore = (claimState as any).claim?.aiScore as number | undefined;
+            if (status === 'Escalated' || status === 'Rejected' || (typeof aiScore === 'number' && aiScore >= 70)) {
+              return 'text-red-400';
+            }
+            if (status === 'UnderReview' || (typeof aiScore === 'number' && aiScore >= 40)) {
+              return 'text-yellow-400';
+            }
+            return 'text-green-400';
+          })()
         }`}>
-          {getRandomPriority().toUpperCase()}
+          {(() => {
+            const status = claimState.claim.status;
+            const aiScore = (claimState as any).claim?.aiScore as number | undefined;
+            if (status === 'Escalated' || status === 'Rejected' || (typeof aiScore === 'number' && aiScore >= 70)) {
+              return 'HIGH';
+            }
+            if (status === 'UnderReview' || (typeof aiScore === 'number' && aiScore >= 40)) {
+              return 'MEDIUM';
+            }
+            return 'LOW';
+          })()} PRIORITY
         </p>
       </div>
     </div>
@@ -136,7 +201,9 @@ export const ClaimProcessingFlow: React.FC<ClaimProcessingFlowProps> = ({
 
       {/* Flow Visualization */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6 mb-0">
-        {processStages.map((stage, index) => (
+        {processStages.map((stage, index) => {
+          const status = deriveStageStatus(stage.id, claimState);
+          return (
           <div key={stage.id} className="flex flex-col items-center relative">
             <div
               className={`w-full p-4 rounded-lg border-2 transition-all cursor-pointer ${
@@ -147,9 +214,9 @@ export const ClaimProcessingFlow: React.FC<ClaimProcessingFlowProps> = ({
               onClick={() => setCurrentStage(stage.id)}
             >
               <div className="flex items-center justify-between mb-2">
-                {getStageIcon(stage.type, stage.status)}
-                <span className={`px-2 py-1 rounded text-xs font-medium text-white ${getStageStatus(stage.status)}`}>
-                  {stage.status.toUpperCase()}
+                {getStageIcon(stage.type, status)}
+                <span className={`px-2 py-1 rounded text-xs font-medium text-white ${getStageStatus(status)}`}>
+                  {status.toUpperCase()}
                 </span>
               </div>
               <h4 className="font-medium text-black text-sm">{stage.name}</h4>
@@ -167,15 +234,30 @@ export const ClaimProcessingFlow: React.FC<ClaimProcessingFlowProps> = ({
               </div>
             )}
           </div>
-        ))}
+        );
+      })}
       </div>
 
       {/* Detailed Stage View */}
       <div className="bg-white border border-gray-300 rounded-lg p-6 mt-6">
-        {currentStage === 'ai-risk' && <AIRiskEvaluation/>}
-        {currentStage === 'fraud-detection' && <FraudDetection/>}
-        {currentStage === 'document-check' && <DocumentCheck/>}
-        {currentStage === 'decision' && selectedClaim && <DecisionArea claim={selectedClaim} />}
+        {currentStage === 'ai-risk' && claimState && (
+          <AIRiskEvaluation claim={claimState} />
+        )}
+        {currentStage === 'fraud-detection' && claimState && (
+          <FraudDetection claim={claimState} />
+        )}
+        {currentStage === 'document-check' && claimState && (
+          <DocumentCheck claim={claimState} />
+        )}
+        {currentStage === 'decision' && claimState && (
+          <DecisionArea
+            claim={claimState}
+            onClaimUpdated={(updated) => {
+              setClaimState(updated);
+              onClaimUpdated && onClaimUpdated(updated);
+            }}
+          />
+        )}
         {currentStage === 'initial' && (
           <div className="text-center py-8">
             <Bot className="h-16 w-16 text-gray-500 mx-auto mb-4" />

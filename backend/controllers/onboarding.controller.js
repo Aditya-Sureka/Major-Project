@@ -42,6 +42,7 @@ class OnboardingController {
             const fileMetaArray = await handleMultipleUploads(req);
 
             const {
+                irdai,
                 pan,
                 cin,
                 tan,
@@ -52,29 +53,40 @@ class OnboardingController {
             const firebaseUid = req.user.firebaseUid;
 
             console.log("firebaseUid from req.user:", firebaseUid);
+            console.log("Incoming insurer onboarding payload:", {
+                irdai,
+                pan,
+                cin,
+                tan,
+                phone,
+                companyCode,
+            });
 
             const allUploadedField = Object.values(fileMetaArray)
                 .flat()
                 .map(f => f._id);
 
-            const insurerRecord = await Insurer.findOneAndUpdate({
-                firebaseUid: firebaseUid
-            }, {
-                $set: {
-                    pan,
-                    cin,
-                    tan,
-                    phone,
-                    companyCode
+            const insurerRecord = await Insurer.findOneAndUpdate(
+                { firebaseUid },
+                {
+                    $set: {
+                        irdai,
+                        pan,
+                        cin,
+                        tan,
+                        phone,
+                        companyCode,
+                    },
+                    $push: {
+                        documents: { $each: allUploadedField },
+                    },
                 },
-                $push: {
-                    documents: { $each: allUploadedField }
-                }
-            }, { new: true, upsert: true });
+                { new: true, upsert: true }
+            );
 
             return res.status(200).json({
                 message: "Insurance Company(Insurer) Onboarded Successfully",
-                data: insurerRecord
+                data: insurerRecord,
             });
 
         } catch (err) {

@@ -33,7 +33,12 @@ const navigate = useNavigate()
       // Assuming success means a token or user object exists in response
       if (response.status >=200 && response.status<300) {
         console.log("Login successful:", response)
-          navigate("/insurer-dashboard");
+        const token = response.data?.token;
+        if (token) {
+          // Store JWT so insurer dashboard / APIs use the correct identity
+          localStorage.setItem("JWT", token);
+        }
+        navigate("/insurer-dashboard");
       } else {
         console.error("Unexpected response:", response)
         alert("Login failed. Please check your credentials.")

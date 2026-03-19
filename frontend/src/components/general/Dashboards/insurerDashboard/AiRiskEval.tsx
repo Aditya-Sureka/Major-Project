@@ -1,6 +1,17 @@
 import { useState } from 'react';
 import { Bot, AlertTriangle, CheckCircle, FileText, TrendingUp } from 'lucide-react';
 
+interface ClaimData {
+  claim: {
+    _id?: string;
+    aiScore?: number;
+    aiConfidence?: number;
+    aiSuggestions?: string[];
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 interface RiskFactor {
   factor: string;
   severity: 'high' | 'medium' | 'low';
@@ -14,27 +25,79 @@ interface AIRiskResults {
   recommendation: string;
 }
 
-export const AIRiskEvaluation = () => {
+interface AIRiskEvaluationProps {
+  claim: ClaimData;
+}
+
+const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
+
+export const AIRiskEvaluation: React.FC<AIRiskEvaluationProps> = ({ claim }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [results, setResults] = useState<AIRiskResults | null>(null);
 
   const runAIEvaluation = async () => {
+    const claimId = claim?.claim?._id as string | undefined;
+    const token = localStorage.getItem("JWT");
+
+    if (!claimId || !token) {
+      console.warn("Missing claim id or auth token for AI evaluation");
+      return;
+    }
+
     setIsProcessing(true);
-    // Simulate AI processing
-    setTimeout(() => {
-      setResults({
-        riskScore: 0.73,
-        confidence: 0.89,
-        flaggedDocuments: ['driver_license.pdf', 'medical_report.pdf'],
-        riskFactors: [
-          { factor: 'Inconsistent timestamps in documents', severity: 'high' },
-          { factor: 'Unusual claim amount for incident type', severity: 'medium' },
-          { factor: 'Previous claims history', severity: 'low' },
-        ],
-        recommendation: 'FLAG_FOR_REVIEW'
+    try {
+      const response = await fetch(`${base_url}/claim/getAIScore/${claimId}`, {
+        method: "GET",
+        headers: {
+          token,
+        },
       });
+
+      if (!response.ok) {
+        console.error("AI score endpoint failed", response.status);
+        setIsProcessing(false);
+        return;
+      }
+
+      const json = await response.json();
+      const payload = json?.data ?? json ?? {};
+
+      const aiScoreRaw = typeof payload.aiScore === "number" ? payload.aiScore : claim.claim.aiScore ?? 0;
+      const aiScore = aiScoreRaw / 100; // convert 0-100 => 0-1 scale for UI
+      const aiConfidenceRaw =
+        typeof payload.aiConfidence === "number" ? payload.aiConfidence : claim.claim.aiConfidence ?? 0;
+      const aiConfidence =
+        aiConfidenceRaw > 1 ? aiConfidenceRaw / 100 : aiConfidenceRaw; // support 0-100 or 0-1
+
+      const suggestions: string[] = Array.isArray(payload.aiSuggestions)
+        ? payload.aiSuggestions
+        : Array.isArray(claim.claim.aiSuggestions)
+        ? (claim.claim.aiSuggestions as string[])
+        : [];
+
+      const derivedRiskFactors: RiskFactor[] = suggestions.map((text) => {
+        const lower = text.toLowerCase();
+        let severity: 'high' | 'medium' | 'low' = 'medium';
+        if (lower.includes('high risk') || lower.includes('fraud')) severity = 'high';
+        else if (lower.includes('low risk') || lower.includes('legitimate')) severity = 'low';
+        return {
+          factor: text,
+          severity,
+        };
+      });
+
+      setResults({
+        riskScore: aiScore,
+        confidence: aiConfidence,
+        flaggedDocuments: [], // detailed doc flags are handled in Fraud / Document views
+        riskFactors: derivedRiskFactors,
+        recommendation: aiScore >= 0.7 ? 'FLAG_FOR_REVIEW' : 'CLEAR',
+      });
+    } catch (err) {
+      console.error("Failed to run AI evaluation", err);
+    } finally {
       setIsProcessing(false);
-    }, 3000);
+    }
   };
 
   return (

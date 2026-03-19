@@ -23,48 +23,88 @@ interface FraudScanResults {
   riskScore: number;
 }
 
-export const FraudDetection = () => {
+interface ClaimData {
+  claim: {
+    _id?: string;
+    aiScore?: number;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+interface FraudDetectionProps {
+  claim: ClaimData;
+}
+
+const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
+
+export const FraudDetection: React.FC<FraudDetectionProps> = ({ claim }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanResults, setScanResults] = useState<FraudScanResults | null>(null);
 
   const runFraudScan = async () => {
+    const claimId = claim?.claim?._id as string | undefined;
+    const token = localStorage.getItem("JWT");
+
+    if (!claimId || !token) {
+      console.warn("Missing claim id or auth token for fraud scan");
+      return;
+    }
+
     setIsScanning(true);
-    // Simulate fraud detection processing
-    setTimeout(() => {
-      setScanResults({
-        overallThreat: 'medium',
-        patternAlerts: [
-          {
-            type: 'Geographic Pattern',
-            severity: 'high',
-            description: 'Similar claims filed from same location in past 30 days',
-            count: 3,
-            icon: MapPin
-          },
-          {
-            type: 'Identity Pattern',
-            severity: 'medium',
-            description: 'Claimant has filed multiple claims in past 6 months',
-            count: 2,
-            icon: Users
-          },
-          {
-            type: 'Timing Pattern',
-            severity: 'low',
-            description: 'Claim filed outside normal business hours',
-            count: 1,
-            icon: Clock
-          }
-        ],
-        crossReferences: {
-          similarClaims: 5,
-          suspiciousProviders: 1,
-          watchlistMatches: 0
+    try {
+      const response = await fetch(`${base_url}/insurer/getFraudReport/${claimId}`, {
+        method: "GET",
+        headers: {
+          token,
         },
-        riskScore: 0.65
       });
+
+      if (!response.ok) {
+        console.error("Fraud report endpoint failed", response.status);
+        setIsScanning(false);
+        return;
+      }
+
+      const json = await response.json();
+      const payload = json?.responseFromAi ?? json ?? {};
+
+      const riskFactors = Array.isArray(payload.risk_factors) ? payload.risk_factors : [];
+      const suspiciousFiles = Array.isArray(payload.suspicious_files) ? payload.suspicious_files : [];
+
+      const patternAlerts: PatternAlert[] = riskFactors.map((rf: any) => ({
+        type: rf.label || rf.description || "Risk Factor",
+        severity: (rf.severity as 'high' | 'medium' | 'low') || 'medium',
+        description: rf.description || rf.label || "Potential anomaly detected",
+        count: 1,
+        icon: MapPin,
+      }));
+
+      const threat: 'high' | 'medium' | 'low' =
+        patternAlerts.some((p) => p.severity === 'high') || suspiciousFiles.length > 0
+          ? 'high'
+          : patternAlerts.length
+          ? 'medium'
+          : 'low';
+
+      const aiScoreRaw = typeof payload.aiScore === "number" ? payload.aiScore : claim.claim.aiScore ?? 0;
+      const riskScore = aiScoreRaw ? Math.min(Math.max(aiScoreRaw / 100, 0), 1) : threat === 'high' ? 0.8 : threat === 'medium' ? 0.5 : 0.2;
+
+      setScanResults({
+        overallThreat: threat,
+        patternAlerts,
+        crossReferences: {
+          similarClaims: suspiciousFiles.length,
+          suspiciousProviders: 0,
+          watchlistMatches: 0,
+        },
+        riskScore,
+      });
+    } catch (err) {
+      console.error("Failed to run fraud scan", err);
+    } finally {
       setIsScanning(false);
-    }, 2500);
+    }
   };
 
   const getSeverityColor = (severity: string) => {

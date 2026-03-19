@@ -1,55 +1,97 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FileCheck, Upload, CheckCircle, XCircle, AlertTriangle, Download } from 'lucide-react';
 
+interface ClaimData {
+  claim: {
+    _id?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
 
-export const DocumentCheck = () => {
-  const [documents, setDocuments] = useState([
-    {
-      id: 1,
-      name: 'Insurance Policy Document',
-      type: 'policy',
-      status: 'verified',
-      required: true,
-      uploadedDate: '2024-06-15',
-      issues: []
-    },
-    {
-      id: 2,
-      name: 'Incident Report',
-      type: 'incident',
-      status: 'pending',
-      required: true,
-      uploadedDate: '2024-06-15',
-      issues: ['Missing signature', 'Incomplete date field']
-    },
-    {
-      id: 3,
-      name: 'Medical Records',
-      type: 'medical',
-      status: 'rejected',
-      required: true,
-      uploadedDate: '2024-06-14',
-      issues: ['Poor image quality', 'Document appears altered']
-    },
-    {
-      id: 4,
-      name: 'Police Report',
-      type: 'police',
-      status: 'missing',
-      required: true,
-      uploadedDate: null,
-      issues: ['Document not provided']
-    },
-    {
-      id: 5,
-      name: 'Repair Estimates',
-      type: 'estimate',
-      status: 'verified',
-      required: false,
-      uploadedDate: '2024-06-15',
-      issues: []
-    }
-  ]);
+interface DocumentItem {
+  id: string;
+  name: string;
+  type: string;
+  status: 'verified' | 'rejected' | 'pending' | 'missing';
+  required: boolean;
+  uploadedDate: string | null;
+  issues: string[];
+  fileId?: string;
+}
+
+interface DocumentCheckProps {
+  claim: ClaimData;
+}
+
+const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
+
+export const DocumentCheck: React.FC<DocumentCheckProps> = ({ claim }) => {
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      const claimId = claim?.claim?._id as string | undefined;
+      const token = localStorage.getItem("JWT");
+
+      if (!claimId || !token) {
+        console.warn("Missing claim id or auth token for document check");
+        setDocuments([]);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${base_url}/insurer/getClaimDocs/${claimId}`, {
+          method: "GET",
+          headers: {
+            token,
+          },
+        });
+
+        if (!response.ok) {
+          console.error("Failed to fetch claim documents", response.status);
+          setDocuments([]);
+          return;
+        }
+
+        const json = await response.json();
+        const docs = json?.documents || {};
+
+        const mapping: { key: string; name: string; type: string; required: boolean }[] = [
+          { key: "insuranceClaimForm", name: "Insurance Claim Form", type: "claim", required: true },
+          { key: "policyDocument", name: "Policy Document", type: "policy", required: true },
+          { key: "deathCert", name: "Death Certificate", type: "death", required: true },
+          { key: "hospitalDocument", name: "Hospital Records", type: "hospital", required: false },
+          { key: "fir", name: "FIR / Police Report", type: "police", required: false },
+          { key: "nominee.passBook", name: "Nominee Passbook", type: "bank", required: false },
+        ];
+
+        const items: DocumentItem[] = mapping.map((m, index) => {
+          const value = docs[m.key] || [];
+          const uploaded = Array.isArray(value) && value.length > 0;
+          const first = uploaded ? value[0] : null;
+
+          return {
+            id: first?._id || `${m.key}-${index}`,
+            name: m.name,
+            type: m.type,
+            status: uploaded ? 'verified' : 'missing',
+            required: m.required,
+            uploadedDate: first?.uploadedAt || null,
+            issues: uploaded ? [] : ['Document not uploaded'],
+            fileId: first?._id,
+          };
+        });
+
+        setDocuments(items);
+      } catch (err) {
+        console.error("Error while fetching claim documents", err);
+        setDocuments([]);
+      }
+    };
+
+    fetchDocuments();
+  }, [claim]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {

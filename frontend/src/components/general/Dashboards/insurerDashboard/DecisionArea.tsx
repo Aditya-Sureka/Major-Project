@@ -1,12 +1,36 @@
 import { useState } from 'react';
 import { CheckCircle, XCircle, FileText, AlertTriangle } from 'lucide-react';
-// import type { ClaimData } from './types';
 
-export const DecisionArea = ({ claim }) => {
+interface ClaimData {
+  id?: string;
+  insuranceDetails: {
+    ownerName?: string;
+    policyHolderName?: string;
+  };
+  claim: {
+    _id?: string;
+    policyType: string;
+    status?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+interface DecisionAreaProps {
+  claim: ClaimData;
+  onClaimUpdated?: (updated: ClaimData) => void;
+}
+
+const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
+
+export const DecisionArea: React.FC<DecisionAreaProps> = ({ claim, onClaimUpdated }) => {
   const [decision, setDecision] = useState<'approve' | 'reject' | 'request-docs' | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const getClaimId = () => (claim?.claim?._id as string | undefined) || (claim.id as string | undefined);
 
   const handleDecision = (type: 'approve' | 'reject' | 'request-docs') => {
     setDecision(type);
@@ -15,16 +39,71 @@ export const DecisionArea = ({ claim }) => {
     }
   };
 
-  const confirmDecision = () => {
-    console.log('Decision confirmed:', {
-      claimId: claim.id,
-      decision,
-      rejectionReason,
-      additionalNotes,
-      timestamp: new Date().toISOString()
-    });
+  const postDecision = async (endpoint: string, body?: Record<string, unknown>) => {
+    const token = localStorage.getItem("JWT");
+    const claimId = getClaimId();
+
+    if (!token || !claimId) {
+      console.warn("Missing auth token or claim id for decision");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`${base_url}${endpoint}/${claimId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          token,
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+
+      if (!response.ok) {
+        console.error("Failed to update claim decision", response.status);
+        return;
+      }
+
+      const newStatus =
+        endpoint.includes("/approve")
+          ? "Settled"
+          : endpoint.includes("/reject")
+          ? "Rejected"
+          : "UnderReview";
+
+      const updated: ClaimData = {
+        ...claim,
+        claim: {
+          ...claim.claim,
+          status: newStatus,
+          rejectionReason: endpoint.includes("/reject") ? rejectionReason : undefined,
+          rejectionAdditionalData: endpoint.includes("/reject") ? additionalNotes : undefined,
+        },
+      };
+
+      onClaimUpdated && onClaimUpdated(updated);
+    } catch (err) {
+      console.error("Error while updating decision", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const confirmDecision = async () => {
+    if (!decision) return;
+
+    if (decision === "approve") {
+      await postDecision("/insurer/approve");
+    } else if (decision === "reject") {
+      await postDecision("/insurer/reject", {
+        rejectionReason,
+        rejectionAdditionalData: additionalNotes,
+      });
+    } else if (decision === "request-docs") {
+      await postDecision("/insurer/review");
+    }
+
     setShowConfirmation(false);
-    // Here you would typically update the claim status in your backend
   };
 
   const rejectionReasons = [
@@ -169,10 +248,10 @@ export const DecisionArea = ({ claim }) => {
             <div className="flex space-x-3">
               <button
                 onClick={confirmDecision}
-                disabled={!rejectionReason}
+                disabled={!rejectionReason || isSubmitting}
                 className="px-6 py-3 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
               >
-                Confirm Rejection
+                {isSubmitting ? "Submitting..." : "Confirm Rejection"}
               </button>
               <button
                 onClick={() => setDecision(null)}
@@ -208,9 +287,10 @@ export const DecisionArea = ({ claim }) => {
             <div className="flex space-x-3">
               <button
                 onClick={confirmDecision}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                disabled={isSubmitting}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
               >
-                Send Request
+                {isSubmitting ? "Sending..." : "Send Request"}
               </button>
               <button
                 onClick={() => setDecision(null)}
@@ -257,9 +337,10 @@ export const DecisionArea = ({ claim }) => {
             <div className="flex space-x-3">
               <button
                 onClick={confirmDecision}
-                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                disabled={isSubmitting}
+                className="px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
               >
-                Confirm Approval
+                {isSubmitting ? "Approving..." : "Confirm Approval"}
               </button>
               <button
                 onClick={() => {

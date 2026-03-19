@@ -5,7 +5,7 @@ import { AppealsSystem } from '../components/general/Dashboards/insurerDashboard
 // import type { ClaimData } from '../components/general/Dashboards/insurerDashboard/types';
 
 const InsurerDashMain = () => {
-  const [selectedClaim, setSelectedClaim] = useState<unknown | null>(null);
+  const [selectedClaim, setSelectedClaim] = useState<any | null>(null);
   const [activeView, setActiveView] = useState<'dashboard' | 'processing' | 'appeals'>('dashboard');
 
 
@@ -62,8 +62,9 @@ const InsurerDashMain = () => {
         )}
         {activeView === 'processing' && (
           <ClaimProcessingFlow
-            selectedClaim={selectedClaim} 
+            selectedClaim={selectedClaim}
             onBack={() => setActiveView('dashboard')}
+            onClaimUpdated={(updated) => setSelectedClaim(updated)}
           />
         )}
         {activeView === 'appeals' && (

@@ -30,39 +30,60 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
 
   const [ClaimsData, setClaimsData] = useState<ClaimData[]>([]);
 
-   useEffect(() => {
-      const fetchClaimHistory = async() => {
+  useEffect(() => {
+    const fetchClaimHistory = async () => {
       try {
-        const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
-        const response = await fetch(`${base_url}/claim/getAllClaims`, {
-          method : 'GET',
-          headers : {
-            'token' : localStorage.getItem("JWT")
-          }
-        });
-        if(response.ok){
-        const data = await response.json();
-        setClaimsData(data.data);
-        console.log("Claims fetched");
-        console.log(data.data);
+        const base_url = import.meta.env.VITE_BACKEND_URL || '';
+        const token = localStorage.getItem("JWT");
+
+        if (!token) {
+          console.warn("JWT token missing - insurer claims cannot be fetched");
+          setClaimsData([]);
+          return;
         }
-        else{
-          console.log("Response error : ", response.status);
+
+        const url = `${base_url}insurer/getClaims`;
+        console.log("Fetching insurer claims from URL:", url);
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'token': token,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const claims = Array.isArray(data.data) ? data.data : [];
+          setClaimsData(claims as ClaimData[]);
+          console.log("Insurer claims fetched", claims);
+        } else {
+          console.log("Response error while fetching insurer claims: ", response.status);
+          setClaimsData([]);
         }
       } catch (error) {
-        console.error(error);
+        console.error("Failed to fetch insurer claims", error);
+        setClaimsData([]);
       }
-    }
-    fetchClaimHistory();
-    
-    }, [])
+    };
 
-    const getRandomPriority = () => {
-      const random = Math.random();
-      if (random < 0.33) return "medium";
-      if (random < 0.66) return "high";
-      return "low";
+    fetchClaimHistory();
+  }, []);
+
+  const getPriorityFromClaim = (claim: ClaimData) => {
+    const status = claim.claim.status || '';
+    const aiScore: number | undefined = (claim as any).claim?.aiScore ?? claim.aiRiskScore;
+    const hasRiskFactors = Array.isArray((claim as any).claim?.riskFactors) && (claim as any).claim?.riskFactors.length > 0;
+    const isFlagged = (claim as any).claim?.fraudFlag;
+
+    if (status === 'Escalated' || status === 'Rejected' || isFlagged || (typeof aiScore === 'number' && aiScore >= 70) || hasRiskFactors) {
+      return 'high';
     }
+    if (status === 'UnderReview' || (typeof aiScore === 'number' && aiScore >= 40)) {
+      return 'medium';
+    }
+    return 'low';
+  };
 
     // const getrandomScore = () => {
     //   const random = Math.random();
@@ -134,6 +155,52 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
     }
   };
 
+  const isSameDay = (a: Date, b: Date) => {
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  };
+
+  const totalNewClaims = ClaimsData.filter(
+    (item: any) => item?.claim?.status === "Instantiated"
+  ).length;
+
+  const totalInProcessing = ClaimsData.filter((item: any) =>
+    ["UnderReview", "Submitted", "Escalated"].includes(item?.claim?.status)
+  ).length;
+
+  const totalApprovedToday = ClaimsData.filter((item: any) => {
+    if (item?.claim?.status !== "Settled") return false;
+    const updatedAt = item?.claim?.updatedAt ? new Date(item.claim.updatedAt) : null;
+    const createdAt = item?.claim?.createdAt ? new Date(item.claim.createdAt) : null;
+    const referenceDate = updatedAt || createdAt;
+    if (!referenceDate) return false;
+    return isSameDay(referenceDate, new Date());
+  }).length;
+
+  const totalFlagged = ClaimsData.filter((item: any) => {
+    const claim = item?.claim || {};
+    const aiScore = claim.aiScore;
+    const hasRiskFactors = Array.isArray(claim.riskFactors) && claim.riskFactors.length > 0;
+    return (
+      claim.fraudFlag === true ||
+      claim.status === "Escalated" ||
+      (typeof aiScore === "number" && aiScore >= 70) ||
+      hasRiskFactors
+    );
+  }).length;
+
+  const aiAccuracy = (() => {
+    const scored = ClaimsData.map((item: any) => item?.claim?.aiScore).filter(
+      (s: unknown) => typeof s === "number"
+    ) as number[];
+    if (!scored.length) return null;
+    const lowRiskCount = scored.filter((s) => s < 40).length;
+    return Math.round((lowRiskCount / scored.length) * 100);
+  })();
+
   return (
     <div className="space-y-6">
       {/* Stats Overview */}
@@ -143,7 +210,7 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
             <FileText className="h-8 w-8 text-blue-400" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-400">New Claims</p>
-              <p className="text-2xl font-bold text-blue-400">{ClaimsData.length}</p>
+              <p className="text-2xl font-bold text-blue-400">{totalNewClaims}</p>
             </div>
           </div>
         </div>
@@ -153,7 +220,7 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
             <Clock className="h-8 w-8 text-yellow-400" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-400">In Processing</p>
-              <p className="text-2xl font-bold text-yellow-400">{ClaimsData.filter((item) => item.claim.status === "Submitted").length}</p>
+              <p className="text-2xl font-bold text-yellow-400">{totalInProcessing}</p>
             </div>
           </div>
         </div>
@@ -163,7 +230,7 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
             <CheckCircle className="h-8 w-8 text-green-400" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-400">Approved Today</p>
-              <p className="text-2xl font-bold text-green-400">{ClaimsData.filter((item)=> item.claim.status === "Accepted").length}</p>
+              <p className="text-2xl font-bold text-green-400">{totalApprovedToday}</p>
             </div>
           </div>
         </div>
@@ -173,7 +240,7 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
             <AlertTriangle className="h-8 w-8 text-red-400" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-400">Flagged</p>
-              <p className="text-2xl font-bold text-red-400">5</p>
+              <p className="text-2xl font-bold text-red-400">{totalFlagged}</p>
             </div>
           </div>
         </div>
@@ -186,7 +253,7 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
         </div>
         <div className="p-6">
           <div className="space-y-4">
-            {ClaimsData.map((claim, index) => (
+            {ClaimsData.map((claim: any, index) => (
               <div
                 key={`CLM - 00${index+1}`}
                 className="bg-white shadow-sm text-base p-4 rounded-lg border hover:border-blue-500 transition-colors cursor-pointer"
@@ -199,23 +266,37 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
                   <div className="flex items-center space-x-4">
                     <div className="flex flex-col">
                       <span className="font-medium text-gray-500">{`CLM - 00${index+1}`}</span>
-                      <span className="text-sm text-gray-400">{claim.insuranceDetails.ownerName ? claim.insuranceDetails.ownerName : claim.insuranceDetails.policyHolderName}</span>
+                      <span className="text-sm text-gray-400">
+                        {claim.insuranceDetails?.ownerName
+                          ? claim.insuranceDetails.ownerName
+                          : claim.insuranceDetails?.policyHolderName}
+                      </span>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-sm text-gray-300">{claim.claim.policyType}</span>
-                      <span className="text-sm text-gray-400">${6500 + 2000*(index+1)}</span>
+                      <span className="text-sm text-gray-300">
+                        {claim.claim?.policyType || 'life-insurance'}
+                      </span>
+                      <span className="text-sm text-gray-400">
+                        {typeof claim.insuranceDetails?.charges === "number"
+                          ? `₹${claim.insuranceDetails.charges.toLocaleString()}`
+                          : 'Amount not available'}
+                      </span>
                     </div>
                   </div>
                   <div className="flex items-center space-x-3">
-                    <span className={`text-sm font-medium ${getPriorityColor(getRandomPriority())}`}>
-                      {`${getRandomPriority().toUpperCase()} PRIORITY`}
+                    <span
+                      className={`text-sm font-medium ${getPriorityColor(
+                        getPriorityFromClaim(claim)
+                      )}`}
+                    >
+                      {`${getPriorityFromClaim(claim).toUpperCase()} PRIORITY`}
                     </span>
                     <span className={`px-3 py-1 rounded-full text-xs font-medium text-white ${getStatusColor(claim.claim.status)}`}>
                       {claim.claim.status.toUpperCase()}
                     </span>
-                    {claim.aiRiskScore && (
+                    {typeof claim.claim?.aiScore === "number" && (
                       <span className="text-sm text-purple-400">
-                        Risk: {(claim.aiRiskScore * 100).toFixed(0)}%
+                        AI Risk: {claim.claim.aiScore}%
                       </span>
                     )}
                   </div>
@@ -249,7 +330,11 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
         <div className="bg-green-400 shadow-sm p-6 rounded-lg hover:bg-green-600">
           <CheckCircle className="h-8 w-8 text-green-800 mb-2" />
           <h3 className="text-lg font-semibold text-gray-100">AI Performance</h3>
-          <p className="text-gray-100">94.2% accuracy this week</p>
+          <p className="text-gray-100">
+            {aiAccuracy !== null
+              ? `${aiAccuracy}% low-risk predictions`
+              : "AI metrics will appear once claims are scored"}
+          </p>
         </div>
       </div>
     </div>

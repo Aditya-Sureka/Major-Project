@@ -170,8 +170,10 @@ const PolicyHolderDashMain = () => {
                   <CheckCircle className="h-4 w-4 text-green-600" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">{ClaimsData?.filter((item)=>item?.claim?.status === "Submitted").length || 0}</div>
-                  <p className="text-xs text-muted-foreground">$45,200 total</p>
+                  <div className="text-2xl font-bold text-green-600">
+                    {ClaimsData?.filter((item)=>item?.claim?.status === "Settled").length || 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Settled with insurer</p>
                 </CardContent>
               </Card>
 
@@ -181,7 +183,9 @@ const PolicyHolderDashMain = () => {
                   <Clock className="h-4 w-4 text-amber-600" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-amber-600">{ClaimsData?.filter((item)=>item?.claim?.status === "Under Review").length || 0}</div>
+                  <div className="text-2xl font-bold text-amber-600">
+                    {ClaimsData?.filter((item)=>item?.claim?.status === "UnderReview").length || 0}
+                  </div>
                   <p className="text-xs text-muted-foreground">Avg. 5-7 days</p>
                 </CardContent>
               </Card>
