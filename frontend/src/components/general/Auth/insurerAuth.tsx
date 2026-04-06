@@ -8,6 +8,16 @@ import { useState, useEffect } from "react"
 import {InsurerSignupRoute} from "../../../utils/API/InsurerRoutes"
 import { cookieUtils } from "../../../utils/lib/utils"
 
+type ApiErrorResponse = {
+  response?: {
+    data?: {
+      error?: string
+      message?: string
+    }
+  }
+  message?: string
+}
+
 export default function InsurerAuth(){
 const navigate = useNavigate()
 
@@ -23,16 +33,36 @@ const navigate = useNavigate()
     orgName : ''
   })
 
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [success, setSuccess] = useState(false)
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value, type, checked } = e.target
     setFormData(prev => ({
       ...prev,
       [id]: type === "checkbox" ? checked : value,
     }))
+    setError(null) // Clear error when user starts typing
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
+    setLoading(true)
+    
+    // Validate form
+    if (!formData.email || !formData.password || !formData.orgName) {
+      setError("Please fill in all fields")
+      setLoading(false)
+      return
+    }
+
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters long")
+      setLoading(false)
+      return
+    }
     
     // Debug cookies before making the request
     console.log('Cookies before signup request:');
@@ -46,16 +76,25 @@ const navigate = useNavigate()
             localStorage.setItem("firebase_uid",response.data.token);
             console.log("firebase uid saved : ", localStorage.getItem("firebase_uid"));
 
+            setSuccess(true)
             console.log('Signup successful, navigating to insurer-signup');
-            navigate("/insurer-signup");
+            setTimeout(() => navigate("/insurer-signup"), 1500);
         }
         else{
             console.log("Authentication failed");
+            setError("Authentication failed. Please try again.");
+          setLoading(false)
         }
     }
-    catch(err){
+      catch(err: unknown){
         console.error('Signup error:', err);
         console.error('Current cookies after error:', cookieUtils.getAll());
+        
+        // Extract error message from backend response
+        const apiError = err as ApiErrorResponse
+        const errorMessage = apiError?.response?.data?.error || apiError?.response?.data?.message || apiError?.message || "Signup failed. Please check your details and try again.";
+        setError(errorMessage);
+        setLoading(false)
     }
   }
 
@@ -97,6 +136,20 @@ const navigate = useNavigate()
           </div>
 
           <form className="space-y-6" onSubmit={handleSubmit}>
+            {/* Error Alert */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                <p className="text-red-800 text-sm font-medium">{error}</p>
+              </div>
+            )}
+
+            {/* Success Alert */}
+            {success && (
+              <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                <p className="text-green-800 text-sm font-medium">✓ Signup successful! Redirecting...</p>
+              </div>
+            )}
+
             <div className="space-y-4">
               <div>
                 <Label htmlFor="email" className="text-[#1F2937] font-medium">
@@ -110,6 +163,7 @@ const navigate = useNavigate()
                   value={formData.email}
                   onChange={handleChange}
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -125,6 +179,7 @@ const navigate = useNavigate()
                   value={formData.orgName}
                   onChange={handleChange}
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -140,13 +195,16 @@ const navigate = useNavigate()
                   value={formData.password}
                   onChange={handleChange}
                   required
+                  disabled={loading}
                 />
+                <p className="text-xs text-gray-600 mt-1">Minimum 6 characters</p>
               </div>
 
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="remember"
                   className="border-gray-300 data-[state=checked]:bg-[#0047AB] data-[state=checked]:border-[#0047AB]"
+                  disabled={loading}
                 />
                 <Label htmlFor="remember" className="text-sm text-gray-600">
                   Remember me for 30 days
@@ -157,9 +215,9 @@ const navigate = useNavigate()
             <Button
               type="submit"
               className="w-full bg-[#0047AB] hover:bg-[#0047AB]/90 text-white font-medium py-3"
-              onClick={handleSubmit}
+              disabled={loading || success}
             >
-              Proceed to onboarding
+              {loading ? "Creating account..." : success ? "Redirecting..." : "Proceed to onboarding"}
             </Button>
 
             <div className="text-center">

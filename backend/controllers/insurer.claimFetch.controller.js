@@ -5,6 +5,76 @@ import LifeInsurance from "../models/lifeInsurance.model.js";
 
 class FetchClaimController {
 
+    constructor() {
+        this.fetchClaimsBasedOnIrdai = this.fetchClaimsBasedOnIrdai.bind(this);
+        this.fetchClaimData = this.fetchClaimData.bind(this);
+        this.buildInsurerClaimView = this.buildInsurerClaimView.bind(this);
+    }
+
+    buildInsurerClaimView(claim, insuranceDetails) {
+        const documentCandidates = [
+            "insuranceClaimForm",
+            "policyDocument",
+            "deathCert",
+            "hospitalDocument",
+            "fir",
+            "nominee.passBook",
+        ];
+
+        const availableDocumentKeys = documentCandidates.filter((key) => {
+            if (key === "nominee.passBook") {
+                return !!insuranceDetails?.nominee?.passBook;
+            }
+
+            return !!insuranceDetails?.[key];
+        });
+
+        return {
+            claim: {
+                _id: claim._id,
+                insurerIrdai: claim.insurerIrdai,
+                policyType: claim.policyType,
+                status: claim.status,
+                aiScore: claim.aiScore,
+                aiConfidence: claim.aiConfidence,
+                aiSuggestions: claim.aiSuggestions || [],
+                fraudFlag: claim.fraudFlag,
+                riskFactors: claim.riskFactors || [],
+                rejectionReason: claim.rejectionReason,
+                rejectionAdditionalData: claim.rejectionAdditionalData,
+                requestedDocuments: claim.requestedDocuments || [],
+                requestedDocumentsNotes: claim.requestedDocumentsNotes,
+                requestedDocumentsAt: claim.requestedDocumentsAt,
+                decisionAt: claim.decisionAt,
+                createdAt: claim.createdAt,
+                updatedAt: claim.updatedAt,
+            },
+            insuranceDetails: {
+                _id: insuranceDetails._id,
+                policyNumber: insuranceDetails.policyNumber,
+                policyHolderName: insuranceDetails.policyHolderName,
+                insurerIrdai: insuranceDetails.insurerIrdai,
+                charges: insuranceDetails.charges,
+                insuranceClaimForm: insuranceDetails.insuranceClaimForm || null,
+                policyDocument: insuranceDetails.policyDocument || null,
+                deathCert: insuranceDetails.deathCert || null,
+                hospitalDocument: insuranceDetails.hospitalDocument || null,
+                fir: insuranceDetails.fir || null,
+                nominee: {
+                    passBook: insuranceDetails?.nominee?.passBook || null,
+                },
+                createdAt: insuranceDetails.createdAt,
+            },
+            documentSummary: {
+                totalRequired: documentCandidates.length,
+                uploadedCount: availableDocumentKeys.length,
+                availableDocumentKeys,
+                requestedDocuments: claim.requestedDocuments || [],
+                requestedDocumentsNotes: claim.requestedDocumentsNotes || null,
+            },
+        };
+    }
+
     async fetchClaimsBasedOnIrdai(req, res) {
         try {
             const firebaseUid = req.user.firebaseUid;
@@ -25,7 +95,7 @@ class FetchClaimController {
             //
             // If you later want strict per-insurer isolation, we can re‑enable:
             //   const claimRecords = await Claim.find({ insurerIrdai: irdai });
-            const claimRecords = await Claim.find({});
+            const claimRecords = await Claim.find({}).sort({ createdAt: -1 });
 
             if (!claimRecords || claimRecords.length === 0) {
                 return res.status(200).json({
@@ -40,18 +110,25 @@ class FetchClaimController {
             const claimsWithDetails = [];
 
             for (const claim of claimRecords) {
-                if (claim.policyModel !== "LifeInsurance") {
-                    // Only LifeInsurance is supported in the current deployment.
-                    continue;
+                try {
+                    if (claim.policyModel !== "LifeInsurance") {
+                        // Only LifeInsurance is supported in the current deployment.
+                        continue;
+                    }
+
+                    // Skip malformed legacy records that can throw CastError.
+                    if (!claim.policyId) {
+                        continue;
+                    }
+
+                    const insuranceDetails = await LifeInsurance.findById(claim.policyId);
+                    if (!insuranceDetails) continue;
+
+                    claimsWithDetails.push(this.buildInsurerClaimView(claim, insuranceDetails));
+                } catch (claimErr) {
+                    // Keep feed resilient: one bad record should not fail the whole response.
+                    console.warn("Skipping malformed claim in insurer feed:", claim?._id, claimErr?.message);
                 }
-
-                const insuranceDetails = await LifeInsurance.findById(claim.policyId);
-                if (!insuranceDetails) continue;
-
-                claimsWithDetails.push({
-                    claim,
-                    insuranceDetails,
-                });
             }
 
             return res.status(200).json({
@@ -60,7 +137,8 @@ class FetchClaimController {
             });
 
         } catch (err) {
-            console.log(err.message);
+            console.error("fetchClaimsBasedOnIrdai failed:", err?.message);
+            console.error(err);
             res.status(500).json({
                 message: "Failed to fetch claims",
                 error: err.message
@@ -94,7 +172,43 @@ class FetchClaimController {
                 return res.status(404).json({ message: "Policy Not found" });
             }
 
-            return res.status(200).json({ insuranceRecord })
+            return res.status(200).json({
+                claim: {
+                    _id: claimRecord._id,
+                    insurerIrdai: claimRecord.insurerIrdai,
+                    policyType: claimRecord.policyType,
+                    status: claimRecord.status,
+                    aiScore: claimRecord.aiScore,
+                    aiConfidence: claimRecord.aiConfidence,
+                    aiSuggestions: claimRecord.aiSuggestions || [],
+                    fraudFlag: claimRecord.fraudFlag,
+                    riskFactors: claimRecord.riskFactors || [],
+                    rejectionReason: claimRecord.rejectionReason,
+                    rejectionAdditionalData: claimRecord.rejectionAdditionalData,
+                    requestedDocuments: claimRecord.requestedDocuments || [],
+                    requestedDocumentsNotes: claimRecord.requestedDocumentsNotes,
+                    requestedDocumentsAt: claimRecord.requestedDocumentsAt,
+                    decisionAt: claimRecord.decisionAt,
+                    createdAt: claimRecord.createdAt,
+                    updatedAt: claimRecord.updatedAt,
+                },
+                insuranceDetails: {
+                    _id: insuranceRecord._id,
+                    policyNumber: insuranceRecord.policyNumber,
+                    policyHolderName: insuranceRecord.policyHolderName,
+                    insurerIrdai: insuranceRecord.insurerIrdai,
+                    charges: insuranceRecord.charges,
+                    insuranceClaimForm: insuranceRecord.insuranceClaimForm || null,
+                    policyDocument: insuranceRecord.policyDocument || null,
+                    deathCert: insuranceRecord.deathCert || null,
+                    hospitalDocument: insuranceRecord.hospitalDocument || null,
+                    fir: insuranceRecord.fir || null,
+                    nominee: {
+                        passBook: insuranceRecord?.nominee?.passBook || null,
+                    },
+                    createdAt: insuranceRecord.createdAt,
+                },
+            })
 
         } catch (err) {
             console.log(err.message);

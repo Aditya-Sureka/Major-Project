@@ -8,7 +8,8 @@ const insurerSchema = new mongoose.Schema({
     },
     irdai: {
         type: String,
-        unique: true
+        sparse: true,  // Allows multiple null values
+        unique: true   // But ensures uniqueness when value exists
     },
     orgName: String,
     companyCode: String,
@@ -20,7 +21,14 @@ const insurerSchema = new mongoose.Schema({
     }],
     pan: String,
     tan: String,
-
+    createdAt: {
+        type: Date,
+        default: Date.now
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now
+    }
 });
 
 const Insurer = mongoose.model("Insurer", insurerSchema);

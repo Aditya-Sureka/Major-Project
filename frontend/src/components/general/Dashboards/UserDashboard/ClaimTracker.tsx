@@ -3,34 +3,214 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle, Clock, FileText, AlertTriangle, User } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from 'axios'
 import {
   ScanLine,
   Workflow,
   ArrowBigUpDash,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+interface ClaimEntry {
+  claim: {
+    _id: string;
+    insurerIrdai: string;
+    policyType: string;
+    status: string;
+    createdAt: string;
+    updatedAt?: string;
+    decisionAt?: string | null;
+    rejectionReason?: string | null;
+    requestedDocuments?: string[];
+    requestedDocumentsNotes?: string | null;
+    requestedDocumentsAt?: string | null;
+  };
+  insuranceDetails?: {
+    charges?: number;
+  };
+  lastUpdate?: string;
+}
+
+interface ClaimStatusEntry {
+  claim: {
+    _id: string;
+    status: string;
+    updatedAt?: string;
+    decisionAt?: string | null;
+    rejectionReason?: string | null;
+    requestedDocuments?: string[];
+    requestedDocumentsNotes?: string | null;
+    requestedDocumentsAt?: string | null;
+    aiScore?: number;
+    aiConfidence?: number;
+    policyType?: string;
+    insurerIrdai?: string;
+    createdAt?: string;
+  };
+}
 
 const ClaimTracker = () => {
 
-  const [ClaimsData, setClaimsData] = useState([]);
+  const [ClaimsData, setClaimsData] = useState<ClaimEntry[]>([]);
   const [aiResponse,setaiResponse] = useState<Record<string, any>>({});
-  const [aiInfoMap, setAiInfoMap] = useState<Record<string, Record<string, string>>>({
-    "123456": {
-      "Risk Score": "78%",
-      "Damage Level": "Moderate",
-      "Claim Validity": "Valid",
-      "Policy Breach": "No",
-      "Driver Age": "32 yrs",
-      "Estimated Payout": "₹75,000",
-      "Accident Severity": "Severe",
-      "Weather Condition": "Foggy",
-      "Vehicle Age": "5 yrs",
-      "Previous Claims": "2"
-    }
-  });
+  const { toast } = useToast();
+  const [aiInfoMap, setAiInfoMap] = useState<Record<string, Record<string, string>>>({});
+  const previousSnapshotRef = useRef<Record<string, string>>({});
+  const hasLoadedClaimsRef = useRef(false);
+  const claimsDataRef = useRef<ClaimEntry[]>([]);
 
   const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
+
+  useEffect(() => {
+    claimsDataRef.current = ClaimsData;
+  }, [ClaimsData]);
+
+  const buildSnapshot = (entry: ClaimStatusEntry) => {
+    const status = entry?.claim?.status || '';
+    const docsSignature = Array.isArray(entry?.claim?.requestedDocuments)
+      ? entry.claim.requestedDocuments.join('|')
+      : '';
+    return [
+      status,
+      entry?.claim?.updatedAt || '',
+      entry?.claim?.decisionAt || '',
+      entry?.claim?.rejectionReason || '',
+      docsSignature,
+      entry?.claim?.requestedDocumentsNotes || '',
+      entry?.claim?.requestedDocumentsAt || '',
+    ].join('|');
+  };
+
+  const formatStatusToast = (entry: ClaimStatusEntry) => {
+    const status = entry?.claim?.status;
+
+    if (status === 'Settled') {
+      return 'Your claim was approved and settled.';
+    }
+
+    if (status === 'Rejected') {
+      return entry?.claim?.rejectionReason
+        ? `Claim rejected: ${entry.claim.rejectionReason}`
+        : 'Claim rejected by the insurer.';
+    }
+
+    if (status === 'UnderReview') {
+      if (Array.isArray(entry?.claim?.requestedDocuments) && entry.claim.requestedDocuments.length > 0) {
+        return `Insurer requested documents: ${entry.claim.requestedDocuments.join(', ')}`;
+      }
+
+      return 'Your claim is under review.';
+    }
+
+    if (status === 'Submitted') {
+      return 'Your claim was submitted to the insurer.';
+    }
+
+    return `Claim status changed to ${status}`;
+  };
+
+  const fetchClaimHistory = async () => {
+    try {
+      const response = await fetch(`${base_url}/claim/getAllClaims`, {
+        method : 'GET',
+        headers : {
+          token: localStorage.getItem("JWT") || "",
+        }
+      });
+      if(response.ok){
+        const data = await response.json();
+        const claimData: ClaimEntry[] = Array.isArray(data?.data) ? data.data : [];
+        setClaimsData(claimData);
+        claimData.forEach((item) => {
+          const claimId = item?.claim?._id;
+          const currentStatus = item?.claim?.status;
+          if (!claimId || !currentStatus) return;
+
+          previousSnapshotRef.current[claimId] = [
+            currentStatus,
+            item?.claim?.updatedAt || '',
+            item?.claim?.decisionAt || '',
+            item?.claim?.rejectionReason || '',
+            Array.isArray(item?.claim?.requestedDocuments) ? item.claim.requestedDocuments.join('|') : '',
+            item?.claim?.requestedDocumentsNotes || '',
+            item?.claim?.requestedDocumentsAt || '',
+          ].join('|');
+        });
+
+        hasLoadedClaimsRef.current = true;
+      }
+      else{
+        console.log("Response error : ", response.status);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const fetchClaimStatuses = async () => {
+    try {
+      const response = await fetch(`${base_url}/claim/getStatuses`, {
+        method: 'GET',
+        headers: {
+          token: localStorage.getItem("JWT") || "",
+        },
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      const statusData: ClaimStatusEntry[] = Array.isArray(data?.data) ? data.data : [];
+      if (!hasLoadedClaimsRef.current) {
+        return;
+      }
+
+      const currentClaimsMap = new Map(claimsDataRef.current.map((item) => [item.claim._id, item]));
+      let hasChange = false;
+
+      statusData.forEach((entry) => {
+        const claimId = entry?.claim?._id;
+        const currentStatus = entry?.claim?.status;
+        if (!claimId || !currentStatus) return;
+
+        const currentSnapshot = buildSnapshot(entry);
+        const previousSnapshot = previousSnapshotRef.current[claimId];
+
+        if (previousSnapshot && previousSnapshot !== currentSnapshot) {
+          toast({
+            title: "Claim Update",
+            description: formatStatusToast(entry),
+          });
+          hasChange = true;
+        }
+
+        previousSnapshotRef.current[claimId] = currentSnapshot;
+
+        const existing = currentClaimsMap.get(claimId);
+        if (existing) {
+          currentClaimsMap.set(claimId, {
+            ...existing,
+            claim: {
+              ...existing.claim,
+              status: currentStatus,
+              updatedAt: entry.claim.updatedAt || existing.claim.updatedAt,
+              rejectionReason: entry.claim.rejectionReason ?? existing.claim.rejectionReason,
+              requestedDocuments: entry.claim.requestedDocuments ?? existing.claim.requestedDocuments,
+              requestedDocumentsNotes: entry.claim.requestedDocumentsNotes ?? existing.claim.requestedDocumentsNotes,
+            },
+          });
+        }
+      });
+
+      if (hasChange) {
+        setClaimsData(Array.from(currentClaimsMap.values()));
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   const fetchAiResponse = async (id: string) => {
     try {
@@ -52,16 +232,7 @@ const ClaimTracker = () => {
         const payload = response.data?.data ?? response.data ?? {};
 
         // Find insurer IRDAI for this claim id
-        let uid: string | undefined;
-        for (let i = 0; i < ClaimsData.length; i++) {
-          if (ClaimsData[i].claim._id === id) {
-            uid = ClaimsData[i].claim.insurerIrdai;
-            break;
-          }
-        }
-
-        // Fallback to claim id if insurer id not found
-        const mapKey = uid || id;
+        const mapKey = id;
 
         // Build a string-friendly map for UI rendering
         const normalizedForUI: Record<string, string> = {};
@@ -151,63 +322,23 @@ const ClaimTracker = () => {
   };
 
   const handleSubmit = async(id: string) => {
-    const updated = ClaimsData.map((item) => {
-      if (item.claim.insurerIrdai === id) {
-        return {
-          ...item,
-          claim: {
-            ...item.claim,
-            status: "Submitted",
-          },
-        };
-      }
-      return item;
-    });
-  
-    setClaimsData(updated);
-    let uid: string | undefined;
-    for(let j=0;j<ClaimsData.length;j++){
-      if(ClaimsData[j].claim.insurerIrdai === id){
-        uid = ClaimsData[j].claim._id;
-        console.log(uid);
-      }
-    }
-    const res = await fetch(`${base_url}/claim/submit/${uid}`, {
+    const res = await fetch(`${base_url}/claim/submit/${id}`, {
       method : 'POST',
       headers : {
-        'token' : localStorage.getItem("JWT")
+        token: localStorage.getItem("JWT") || "",
       }
     });
     console.log(res);
+    await fetchClaimHistory();
+    await fetchClaimStatuses();
   };
 
 
-  //Claim History fetch
-useEffect(() => {
-  const fetchClaimHistory = async() => {
-  try {
-    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}claim/getAllClaims`, {
-      method : 'GET',
-      headers : {
-        'token' : localStorage.getItem("JWT")
-      }
-    });
-    if(response.ok){
-    const data = await response.json();
-    setClaimsData(data.data);
-    console.log("Claims fetched");
-    console.log(data.data);
-    }
-    else{
-      console.log("Response error : ", response.status);
-    }
-  } catch (error) {
-    console.error(error);
-  }
-}
-fetchClaimHistory();
-
-}, [])
+  useEffect(() => {
+    fetchClaimHistory();
+    const interval = setInterval(fetchClaimStatuses, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
 
 
@@ -256,25 +387,30 @@ return(
       </Card>
 
       {ClaimsData.map((claim) => {
-        const isExpanded = expandedClaimId === claim.claim.insurerIrdai;
-        const aiData = aiResponse[claim.claim.insurerIrdai];
+        const claimId = claim.claim._id;
+        const isExpanded = expandedClaimId === claimId;
+        const aiData = aiResponse[claimId];
 
         return (
-          <Card key={claim.claim.insurerIrdai}>
+          <Card key={claimId}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   {getStatusIcon(claim.claim.status)}
                   <div>
-                    <CardTitle className="text-lg">{claim.claim.insurerIrdai}</CardTitle>
-                    <CardDescription>{claim.claim.policyType} Claim</CardDescription>
+                    <CardTitle className="text-lg">{claimId}</CardTitle>
+                    <CardDescription>
+                      {claim.claim.insurerIrdai} · {claim.claim.policyType} Claim
+                    </CardDescription>
                   </div>
                 </div>
                 <div className="text-right">
                   <Badge className={getStatusColor(claim.claim.status)}>
                     {claim.claim.status.toUpperCase()}
                   </Badge>
-                  <p className="text-sm text-gray-500 mt-1">Amount: $10,000</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Amount: {typeof claim.insuranceDetails?.charges === "number" ? `₹${claim.insuranceDetails.charges.toLocaleString()}` : "N/A"}
+                  </p>
                 </div>
               </div>
             </CardHeader>
@@ -400,26 +536,29 @@ return(
               )}
 
               <div className="flex flex-wrap gap-4 pt-2">
-                <Button variant="outline" size="lg" className="mx-2" onClick={() => toggleExpanded(claim.claim.insurerIrdai)}>
+                <Button variant="outline" size="lg" className="mx-2" onClick={() => toggleExpanded(claimId)}>
                   {isExpanded ? "Hide Details" : "View Details"}
                 </Button>
 
-                <Button onClick={() => {
-                  fetchAiResponse(claim.claim._id)
-                  setExpandedClaimId(claim.claim.insurerIrdai)}} 
+                <Button onClick={async () => {
+                  await fetchAiResponse(claimId);
+                  await fetchClaimHistory();
+                  await fetchClaimStatuses();
+                  setExpandedClaimId(claimId);
+                }} 
                   variant="outline" className="mx-2" size="lg">
                   AI Prediction
                 </Button>
 
-                <Button onClick={() => handleSubmit(claim.claim.insurerIrdai)} variant="outline" className="mx-2 bg-black text-white text-base" size="lg">
+                <Button onClick={() => handleSubmit(claimId)} variant="outline" className="mx-2 bg-black text-white text-base" size="lg">
                   Submit
                 </Button>
               </div>
-              {aiInfoMap[claim.claim.insurerIrdai] && (
+              {aiInfoMap[claimId] && (
             <div className="border p-4 rounded-lg bg-gray-50 space-y-2">
               <h4 className="text-sm font-bold text-gray-700">AI Prediction Info</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-sm text-gray-600">
-                {Object.entries(aiInfoMap[claim.claim.insurerIrdai]).map(([key, value]) => (
+                {Object.entries(aiInfoMap[claimId]).map(([key, value]) => (
                   <div key={key} className="flex justify-between">
                     <span className="font-medium">{key}:</span>
                     <span>{value}</span>

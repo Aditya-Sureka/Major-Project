@@ -6,6 +6,7 @@ import onboardingRoutes from "./routes/onboarding.routes.js";
 import claimCheckRoutes from "./routes/claimCheck.routes.js";
 import claimRoutes from "./routes/claim.routes.js";
 import insurerRoutes from "./routes/insurer.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use("/onboarding", onboardingRoutes);
 app.use("/check", claimCheckRoutes);
 app.use("/claim", claimRoutes);
 app.use("/insurer", insurerRoutes);
+app.use("/notification", notificationRoutes);
 
 app.get("/", (req, res) => {
   res.send("Welcome Aboard!");

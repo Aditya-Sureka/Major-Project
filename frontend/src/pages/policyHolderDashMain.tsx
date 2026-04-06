@@ -8,10 +8,14 @@ import PolicySection from "@/components/general/Dashboards/UserDashboard/PolicyS
 import ClaimSubmission from "@/components/general/Dashboards/UserDashboard/ClaimSubmission";
 import ClaimTracker from "@/components/general/Dashboards/UserDashboard/ClaimTracker";
 import AppealSection from "@/components/general/Dashboards/UserDashboard/AppealSection";
+import { useSearchParams } from 'react-router-dom';
 // import ClaimRecords from "@/components/general/dashboards/UserDashboard/ClaimRecords";
 
 const PolicyHolderDashMain = () => {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const validTabs = ["dashboard", "policy", "submit", "track", "appeals"];
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(validTabs.includes(initialTab || "") ? initialTab || "dashboard" : "dashboard");
   // const claims = [{
   //   id: "CLM-2024-001",
   //   type: "Auto Accident",
@@ -31,6 +35,8 @@ const PolicyHolderDashMain = () => {
   
 
   const [ClaimsData, setClaimsData] = useState([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   //Claim History fetch
   useEffect(() => {
@@ -63,6 +69,32 @@ const PolicyHolderDashMain = () => {
   
   }, [])
 
+  useEffect(() => {
+    const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
+
+    const fetchNotifications = async () => {
+      try {
+        const response = await fetch(`${base_url}/notification`, {
+          method: 'GET',
+          headers: {
+            token: localStorage.getItem('JWT') || '',
+          },
+        });
+
+        if (!response.ok) return;
+
+        const json = await response.json();
+        setNotifications(Array.isArray(json?.data) ? json.data : []);
+      } catch (error) {
+        console.error('Failed to fetch notifications', error);
+      }
+    };
+
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   const [userDet,setuserDet] = useState({
     name:'',
     phone : '',
@@ -84,6 +116,37 @@ const PolicyHolderDashMain = () => {
       console.error("Error parsing user data:", error);
     }
   },[])
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (!tab) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set('tab', activeTab);
+      setSearchParams(nextParams, { replace: true });
+      return;
+    }
+
+    if (!validTabs.includes(tab)) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set('tab', 'dashboard');
+      setSearchParams(nextParams, { replace: true });
+      if (activeTab !== 'dashboard') {
+        setActiveTab('dashboard');
+      }
+      return;
+    }
+
+    if (tab !== activeTab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams, activeTab, setSearchParams]);
+
+  const handleTabChange = (nextTab: string) => {
+    setActiveTab(nextTab);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('tab', nextTab);
+    setSearchParams(nextParams, { replace: true });
+  };
 
 
   // const { toast } = useToast();
@@ -114,6 +177,23 @@ const PolicyHolderDashMain = () => {
     }
   };
 
+  const unreadCount = notifications.filter((item) => !item.read).length;
+
+  const markNotificationRead = async (notificationId: string) => {
+    try {
+      const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
+      await fetch(`${base_url}/notification/${notificationId}/read`, {
+        method: 'PATCH',
+        headers: {
+          token: localStorage.getItem('JWT') || '',
+        },
+      });
+      setNotifications((prev) => prev.map((item) => (item._id === notificationId ? { ...item, read: true } : item)));
+    } catch (error) {
+      console.error('Failed to mark notification as read', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -127,9 +207,18 @@ const PolicyHolderDashMain = () => {
             <div className="flex items-center space-x-4">
               <Button variant="ghost" size="sm" className="relative">
                 <Bell className="h-5 w-5" />
-                <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-red-500 text-white text-xs">
-                  2
-                </Badge>
+                {unreadCount > 0 && (
+                  <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-red-500 text-white text-xs">
+                    {unreadCount}
+                  </Badge>
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowNotifications((prev) => !prev)}
+              >
+                Alerts
               </Button>
               <div className="text-sm">
                 <p className="font-medium text-gray-900">{userDet?.name}</p>
@@ -141,7 +230,39 @@ const PolicyHolderDashMain = () => {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full p-4">
+        {showNotifications && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Notifications</CardTitle>
+              <CardDescription>Latest insurer updates on your claims</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {notifications.length > 0 ? (
+                notifications.map((notification) => (
+                  <div
+                    key={notification._id}
+                    className={`p-3 rounded-lg border ${notification.read ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}
+                    onClick={() => markNotificationRead(notification._id)}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-gray-900">{notification.title}</p>
+                        <p className="text-sm text-gray-600">{notification.message}</p>
+                      </div>
+                      {!notification.read && <span className="text-xs text-blue-600 font-semibold">NEW</span>}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">No notifications yet.</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full p-4">
           <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 mb-8">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="policy">My Policy</TabsTrigger>

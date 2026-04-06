@@ -71,7 +71,18 @@ class ClaimDocs {
                 }
             }
 
-            return res.status(200).json({ documents: docDetails });
+            return res.status(200).json({
+                claim: {
+                    _id: claimRecord._id,
+                    status: claimRecord.status,
+                    requestedDocuments: claimRecord.requestedDocuments || [],
+                    requestedDocumentsNotes: claimRecord.requestedDocumentsNotes || null,
+                    requestedDocumentsAt: claimRecord.requestedDocumentsAt || null,
+                    decisionAt: claimRecord.decisionAt || null,
+                    updatedAt: claimRecord.updatedAt || null,
+                },
+                documents: docDetails,
+            });
 
         } catch (err) {
             console.error("getClaimDocs error:", err);

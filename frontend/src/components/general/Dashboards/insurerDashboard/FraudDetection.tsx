@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Shield, AlertTriangle, CheckCircle, Users, MapPin, Clock } from 'lucide-react';
+import { Shield, AlertTriangle, CheckCircle, MapPin } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 interface PatternAlert {
@@ -34,11 +34,12 @@ interface ClaimData {
 
 interface FraudDetectionProps {
   claim: ClaimData;
+  onCompleted?: () => void;
 }
 
 const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
 
-export const FraudDetection: React.FC<FraudDetectionProps> = ({ claim }) => {
+export const FraudDetection: React.FC<FraudDetectionProps> = ({ claim, onCompleted }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanResults, setScanResults] = useState<FraudScanResults | null>(null);
 
@@ -72,7 +73,7 @@ export const FraudDetection: React.FC<FraudDetectionProps> = ({ claim }) => {
       const riskFactors = Array.isArray(payload.risk_factors) ? payload.risk_factors : [];
       const suspiciousFiles = Array.isArray(payload.suspicious_files) ? payload.suspicious_files : [];
 
-      const patternAlerts: PatternAlert[] = riskFactors.map((rf: any) => ({
+      const patternAlerts: PatternAlert[] = riskFactors.map((rf: { label?: string; description?: string; severity?: string }) => ({
         type: rf.label || rf.description || "Risk Factor",
         severity: (rf.severity as 'high' | 'medium' | 'low') || 'medium',
         description: rf.description || rf.label || "Potential anomaly detected",
@@ -80,15 +81,23 @@ export const FraudDetection: React.FC<FraudDetectionProps> = ({ claim }) => {
         icon: MapPin,
       }));
 
+      const aiScoreRaw = typeof payload.aiScore === "number" ? payload.aiScore : claim.claim.aiScore ?? 0;
+      const aiScorePct = Number(aiScoreRaw) || 0;
+
       const threat: 'high' | 'medium' | 'low' =
-        patternAlerts.some((p) => p.severity === 'high') || suspiciousFiles.length > 0
+        patternAlerts.some((p) => p.severity === 'high') || suspiciousFiles.length > 0 || aiScorePct >= 70
           ? 'high'
-          : patternAlerts.length
+          : patternAlerts.length || aiScorePct >= 40
           ? 'medium'
           : 'low';
 
-      const aiScoreRaw = typeof payload.aiScore === "number" ? payload.aiScore : claim.claim.aiScore ?? 0;
-      const riskScore = aiScoreRaw ? Math.min(Math.max(aiScoreRaw / 100, 0), 1) : threat === 'high' ? 0.8 : threat === 'medium' ? 0.5 : 0.2;
+      const riskScore = aiScorePct
+        ? Math.min(Math.max(aiScorePct / 100, 0), 1)
+        : threat === 'high'
+        ? 0.8
+        : threat === 'medium'
+        ? 0.5
+        : 0.2;
 
       setScanResults({
         overallThreat: threat,
@@ -100,6 +109,9 @@ export const FraudDetection: React.FC<FraudDetectionProps> = ({ claim }) => {
         },
         riskScore,
       });
+      if (onCompleted) {
+        onCompleted();
+      }
     } catch (err) {
       console.error("Failed to run fraud scan", err);
     } finally {

@@ -6,13 +6,65 @@ import { Upload, Shield } from "lucide-react";
 import { Info } from 'lucide-react';
 import { LifeInsuranceForm } from '../../forms/lifeform';
 
+interface PolicySnapshot {
+  claim: {
+    _id: string;
+    status?: string;
+    createdAt?: string;
+  };
+  insuranceDetails: {
+    policyNumber?: string;
+    policyHolderName?: string;
+    uin?: string;
+    insurerIrdai?: string;
+    charges?: number;
+    createdAt?: string;
+  };
+}
+
 const PolicySection = () => {
   const [insuranceType, setInsuranceType] = useState("Life insurance");
   const [insuranceFormData, setinsuranceFormData] = useState({});
+  const [latestPolicy, setLatestPolicy] = useState<PolicySnapshot | null>(null);
+  const [isPolicyLoading, setIsPolicyLoading] = useState(true);
+  const [policyError, setPolicyError] = useState("");
 
-  useEffect(()=>{
-    console.log(insuranceFormData);
-  },[insuranceFormData])
+  useEffect(() => {
+    const fetchLatestPolicy = async () => {
+      const token = localStorage.getItem("JWT");
+      if (!token) {
+        setIsPolicyLoading(false);
+        return;
+      }
+
+      try {
+        const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
+        const response = await fetch(`${base_url}/claim/getPolicies`, {
+          method: 'GET',
+          headers: {
+            token,
+          },
+        });
+
+        if (!response.ok) {
+          setPolicyError("Unable to load previous policies right now.");
+          setIsPolicyLoading(false);
+          return;
+        }
+
+        const data = await response.json();
+        const policyList = Array.isArray(data?.data) ? data.data : [];
+        setLatestPolicy(policyList[0] || null);
+      } catch (error) {
+        console.error(error);
+        setPolicyError("Unable to load previous policies right now.");
+      } finally {
+        setIsPolicyLoading(false);
+      }
+    };
+
+    fetchLatestPolicy();
+  },[])
 
   const [uploadedFiles, setUploadedFiles] = useState<{ [key: string]: File | null }>({});
 
@@ -133,6 +185,25 @@ const PolicySection = () => {
           <Shield className="h-5 w-5 mr-2 text-blue-700" />
           Know Your Policy
         </CardTitle>
+
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-4 mt-4">
+          <p className="text-sm font-semibold text-slate-800">Latest Policy</p>
+          {isPolicyLoading && <p className="text-sm text-slate-500 mt-1">Checking your existing policy details...</p>}
+          {!isPolicyLoading && policyError && <p className="text-sm text-red-600 mt-1">{policyError}</p>}
+          {!isPolicyLoading && !policyError && !latestPolicy && (
+            <p className="text-sm text-slate-500 mt-1">No previous life policy found on the platform yet.</p>
+          )}
+          {!isPolicyLoading && !policyError && latestPolicy && (
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-slate-700">
+              <p><span className="font-medium">Claim Status:</span> {latestPolicy.claim.status || 'N/A'}</p>
+              <p><span className="font-medium">Policy Holder:</span> {latestPolicy.insuranceDetails.policyHolderName || 'N/A'}</p>
+              <p><span className="font-medium">Policy Number:</span> {latestPolicy.insuranceDetails.policyNumber || 'N/A'}</p>
+              <p><span className="font-medium">UIN:</span> {latestPolicy.insuranceDetails.uin || 'N/A'}</p>
+              <p><span className="font-medium">Estimated Charge:</span> {typeof latestPolicy.insuranceDetails.charges === 'number' ? `₹${latestPolicy.insuranceDetails.charges.toLocaleString()}` : 'N/A'}</p>
+              <p><span className="font-medium">Claim Created:</span> {latestPolicy.claim.createdAt ? new Date(latestPolicy.claim.createdAt).toLocaleString() : 'N/A'}</p>
+            </div>
+          )}
+        </div>
 
         {/* Dropdown */}
         <div className="my-6">

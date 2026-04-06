@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FileText, AlertTriangle, CheckCircle, Clock, TrendingUp } from 'lucide-react';
 // import type { ClaimData } from './types';
-import { useEffect } from 'react';
 
 interface ClaimData {
   id?: string;
@@ -29,11 +28,25 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
 }) => {
 
   const [ClaimsData, setClaimsData] = useState<ClaimData[]>([]);
+  const [newClaimIds, setNewClaimIds] = useState<string[]>([]);
+  const previousClaimIdsRef = useRef<string[]>([]);
+
+  const getClaimIdentity = (claim: ClaimData, index: number) => {
+    return String((claim as any)?.claim?._id || (claim as any)?.id || `claim-${index}`);
+  };
+
+  const sortClaimsByLatest = (claims: ClaimData[]) => {
+    return [...claims].sort((a: any, b: any) => {
+      const aTime = new Date(a?.claim?.createdAt || a?.claim?.updatedAt || 0).getTime();
+      const bTime = new Date(b?.claim?.createdAt || b?.claim?.updatedAt || 0).getTime();
+      return bTime - aTime;
+    });
+  };
 
   useEffect(() => {
     const fetchClaimHistory = async () => {
       try {
-        const base_url = import.meta.env.VITE_BACKEND_URL || '';
+        const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
         const token = localStorage.getItem("JWT");
 
         if (!token) {
@@ -42,7 +55,7 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
           return;
         }
 
-        const url = `${base_url}insurer/getClaims`;
+        const url = `${base_url}/insurer/getClaims`;
         console.log("Fetching insurer claims from URL:", url);
 
         const response = await fetch(url, {
@@ -55,7 +68,23 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
         if (response.ok) {
           const data = await response.json();
           const claims = Array.isArray(data.data) ? data.data : [];
-          setClaimsData(claims as ClaimData[]);
+          const orderedClaims = sortClaimsByLatest(claims as ClaimData[]);
+
+          const incomingIds = orderedClaims.map((claim: ClaimData, index: number) => getClaimIdentity(claim, index));
+          const previousIds = previousClaimIdsRef.current;
+
+          if (previousIds.length > 0) {
+            const justArrived = incomingIds.filter((id) => !previousIds.includes(id));
+            if (justArrived.length > 0) {
+              setNewClaimIds(justArrived);
+              setTimeout(() => {
+                setNewClaimIds((current) => current.filter((id) => !justArrived.includes(id)));
+              }, 20000);
+            }
+          }
+
+          previousClaimIdsRef.current = incomingIds;
+          setClaimsData(orderedClaims);
           console.log("Insurer claims fetched", claims);
         } else {
           console.log("Response error while fetching insurer claims: ", response.status);
@@ -68,6 +97,9 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
     };
 
     fetchClaimHistory();
+
+    const poller = setInterval(fetchClaimHistory, 12000);
+    return () => clearInterval(poller);
   }, []);
 
   const getPriorityFromClaim = (claim: ClaimData) => {
@@ -254,9 +286,16 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
         <div className="p-6">
           <div className="space-y-4">
             {ClaimsData.map((claim: any, index) => (
+              (() => {
+                const claimId = String(claim?.claim?._id || claim?.id || `claim-${index}`);
+                const isNewClaim = newClaimIds.includes(claimId);
+
+                return (
               <div
-                key={`CLM - 00${index+1}`}
-                className="bg-white shadow-sm text-base p-4 rounded-lg border hover:border-blue-500 transition-colors cursor-pointer"
+                key={claimId}
+                className={`bg-white shadow-sm text-base p-4 rounded-lg border hover:border-blue-500 transition-colors cursor-pointer ${
+                  isNewClaim ? 'border-blue-500 ring-1 ring-blue-200' : ''
+                }`}
                 onClick={() => {
                   onClaimSelect(claim);
                   onViewChange('processing');
@@ -265,7 +304,7 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <div className="flex flex-col">
-                      <span className="font-medium text-gray-500">{`CLM - 00${index+1}`}</span>
+                      <span className="font-medium text-gray-500">{claim?.claim?._id || `Claim ${index + 1}`}</span>
                       <span className="text-sm text-gray-400">
                         {claim.insuranceDetails?.ownerName
                           ? claim.insuranceDetails.ownerName
@@ -284,6 +323,11 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center space-x-3">
+                    {isNewClaim && (
+                      <span className="px-2 py-1 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">
+                        NEW
+                      </span>
+                    )}
                     <span
                       className={`text-sm font-medium ${getPriorityColor(
                         getPriorityFromClaim(claim)
@@ -302,6 +346,8 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
                   </div>
                 </div>
               </div>
+                );
+              })()
             ))}
           </div>
         </div>

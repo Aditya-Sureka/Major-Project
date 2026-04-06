@@ -11,3 +11,4 @@ pythonApi/.env
 pythonApi/model_features.json
 pythonApi/life_insurance_fraud_model.pkl
 backend/uploads/*
+plan.md

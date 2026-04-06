@@ -12,6 +12,7 @@ import AuthDividerSignUp from './pages/AuthDividerSignup'
 import AuthDividerSignIn from './pages/AuthDividerSignIn'
 import InsurerAuth from './components/general/Auth/insurerAuth'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { Toaster } from './components/ui/toaster'
 function App() {
 
   return (
@@ -29,6 +30,7 @@ function App() {
         <Route path='/insurer-dashboard' element={<InsurerDashMain/>}/>
         <Route path='/policyHolder-dashboard' element={<PolicyHolderDashMain/>}/>
       </Routes>
+      <Toaster />
     </Router>
   )
 }

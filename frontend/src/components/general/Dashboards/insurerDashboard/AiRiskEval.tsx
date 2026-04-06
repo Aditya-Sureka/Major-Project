@@ -27,11 +27,12 @@ interface AIRiskResults {
 
 interface AIRiskEvaluationProps {
   claim: ClaimData;
+  onCompleted?: () => void;
 }
 
 const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
 
-export const AIRiskEvaluation: React.FC<AIRiskEvaluationProps> = ({ claim }) => {
+export const AIRiskEvaluation: React.FC<AIRiskEvaluationProps> = ({ claim, onCompleted }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [results, setResults] = useState<AIRiskResults | null>(null);
 
@@ -93,6 +94,9 @@ export const AIRiskEvaluation: React.FC<AIRiskEvaluationProps> = ({ claim }) => 
         riskFactors: derivedRiskFactors,
         recommendation: aiScore >= 0.7 ? 'FLAG_FOR_REVIEW' : 'CLEAR',
       });
+      if (onCompleted) {
+        onCompleted();
+      }
     } catch (err) {
       console.error("Failed to run AI evaluation", err);
     } finally {

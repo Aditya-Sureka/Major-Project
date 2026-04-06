@@ -4,6 +4,9 @@ import { FileCheck, Upload, CheckCircle, XCircle, AlertTriangle, Download } from
 interface ClaimData {
   claim: {
     _id?: string;
+    status?: string;
+    requestedDocuments?: string[];
+    requestedDocumentsNotes?: string | null;
     [key: string]: unknown;
   };
   [key: string]: unknown;
@@ -20,14 +23,52 @@ interface DocumentItem {
   fileId?: string;
 }
 
+interface BackendDocument {
+  _id: string;
+  uploadedAt?: string;
+  originalName?: string;
+  fileName?: string;
+}
+
 interface DocumentCheckProps {
   claim: ClaimData;
+  onClaimUpdated?: (updated: ClaimData) => void;
 }
 
 const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
 
-export const DocumentCheck: React.FC<DocumentCheckProps> = ({ claim }) => {
+export const DocumentCheck: React.FC<DocumentCheckProps> = ({ claim, onClaimUpdated }) => {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [requestNotes, setRequestNotes] = useState('Please upload the missing documents to proceed.');
+  const [isRequesting, setIsRequesting] = useState(false);
+
+  const labelize = (key: string) => {
+    const map: Record<string, string> = {
+      insuranceClaimForm: 'Insurance Claim Form',
+      policyDocument: 'Policy Document',
+      deathCert: 'Death Certificate',
+      hospitalDocument: 'Hospital Records',
+      fir: 'FIR / Police Report',
+      'nominee.passBook': 'Nominee Passbook',
+    };
+
+    if (map[key]) return map[key];
+    return key
+      .replace(/\./g, ' ')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/^./, (s) => s.toUpperCase());
+  };
+
+  const isRequired = (key: string) => ['insuranceClaimForm', 'policyDocument', 'deathCert'].includes(key);
+
+  const normalizedDocumentOrder = [
+    'insuranceClaimForm',
+    'policyDocument',
+    'deathCert',
+    'hospitalDocument',
+    'fir',
+    'nominee.passBook',
+  ];
 
   useEffect(() => {
     const fetchDocuments = async () => {
@@ -55,33 +96,43 @@ export const DocumentCheck: React.FC<DocumentCheckProps> = ({ claim }) => {
         }
 
         const json = await response.json();
-        const docs = json?.documents || {};
+        const docs: Record<string, BackendDocument[]> = json?.documents || {};
+        const requestedDocuments: string[] = Array.isArray(json?.claim?.requestedDocuments)
+          ? json.claim.requestedDocuments
+          : Array.isArray(claim?.claim?.requestedDocuments)
+          ? claim.claim.requestedDocuments
+          : [];
+        const keys = Array.from(new Set([...normalizedDocumentOrder, ...Object.keys(docs), ...requestedDocuments]));
 
-        const mapping: { key: string; name: string; type: string; required: boolean }[] = [
-          { key: "insuranceClaimForm", name: "Insurance Claim Form", type: "claim", required: true },
-          { key: "policyDocument", name: "Policy Document", type: "policy", required: true },
-          { key: "deathCert", name: "Death Certificate", type: "death", required: true },
-          { key: "hospitalDocument", name: "Hospital Records", type: "hospital", required: false },
-          { key: "fir", name: "FIR / Police Report", type: "police", required: false },
-          { key: "nominee.passBook", name: "Nominee Passbook", type: "bank", required: false },
-        ];
-
-        const items: DocumentItem[] = mapping.map((m, index) => {
-          const value = docs[m.key] || [];
+        const items: DocumentItem[] = keys.map((key, index) => {
+          const value = docs[key] || [];
           const uploaded = Array.isArray(value) && value.length > 0;
           const first = uploaded ? value[0] : null;
+          const wasRequested = requestedDocuments.includes(key);
 
           return {
-            id: first?._id || `${m.key}-${index}`,
-            name: m.name,
-            type: m.type,
-            status: uploaded ? 'verified' : 'missing',
-            required: m.required,
+            id: first?._id || `${key}-${index}`,
+            name: labelize(key),
+            type: key,
+            status: uploaded ? 'verified' : wasRequested ? 'pending' : 'missing',
+            required: isRequired(key),
             uploadedDate: first?.uploadedAt || null,
-            issues: uploaded ? [] : ['Document not uploaded'],
+            issues: uploaded ? [] : wasRequested ? ['Requested by insurer'] : ['Document not uploaded'],
             fileId: first?._id,
           };
         });
+
+        if (json?.claim?.requestedDocumentsNotes) {
+          items.unshift({
+            id: `request-note-${claimId}`,
+            name: 'Requested Documents Note',
+            type: 'requestedDocumentsNotes',
+            status: 'pending',
+            required: false,
+            uploadedDate: json?.claim?.requestedDocumentsAt || null,
+            issues: [json.claim.requestedDocumentsNotes],
+          });
+        }
 
         setDocuments(items);
       } catch (err) {
@@ -113,30 +164,71 @@ export const DocumentCheck: React.FC<DocumentCheckProps> = ({ claim }) => {
     }
   };
 
-  const approveDocument = (docId: number) => {
-    setDocuments(docs => 
-      docs.map(doc => 
-        doc.id === docId 
-          ? { ...doc, status: 'verified', issues: [] }
-          : doc
-      )
-    );
-  };
-
-  const rejectDocument = (docId: number, reason: string) => {
-    setDocuments(docs => 
-      docs.map(doc => 
-        doc.id === docId 
-          ? { ...doc, status: 'rejected', issues: [reason] }
-          : doc
-      )
-    );
-  };
-
   const getCompletionRate = () => {
     const requiredDocs = documents.filter(doc => doc.required);
+    if (requiredDocs.length === 0) return 0;
     const verifiedRequired = requiredDocs.filter(doc => doc.status === 'verified');
     return Math.round((verifiedRequired.length / requiredDocs.length) * 100);
+  };
+
+  const handleDownload = (fileId?: string) => {
+    if (!fileId) return;
+    window.open(`${base_url}/insurer/downloadDoc/${fileId}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const handlePreview = (fileId?: string) => {
+    if (!fileId) return;
+    window.open(`${base_url}/insurer/previewDoc/${fileId}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const requestMissingDocumentsNow = async () => {
+    const claimId = claim?.claim?._id as string | undefined;
+    const token = localStorage.getItem('JWT');
+
+    if (!claimId || !token) return;
+
+    const missingRequired = documents
+      .filter((doc) => doc.required && doc.status === 'missing')
+      .map((doc) => doc.type);
+
+    if (!missingRequired.length) {
+      return;
+    }
+
+    setIsRequesting(true);
+    try {
+      const response = await fetch(`${base_url}/insurer/request-docs/${claimId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          token,
+        },
+        body: JSON.stringify({
+          requestedDocuments: missingRequired,
+          notes: requestNotes,
+        }),
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const json = await response.json();
+      const serverClaim = json?.data;
+      if (serverClaim && onClaimUpdated) {
+        onClaimUpdated({
+          ...claim,
+          claim: {
+            ...claim.claim,
+            ...serverClaim,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Failed to request missing docs', error);
+    } finally {
+      setIsRequesting(false);
+    }
   };
 
   return (
@@ -216,32 +308,26 @@ export const DocumentCheck: React.FC<DocumentCheckProps> = ({ claim }) => {
                   {/* Action buttons */}
                   <div className="flex space-x-2">
                     {doc.status !== 'missing' && (
-                      <button className="p-2 text-gray-400 hover:text-white transition-colors">
-                        <Download className="h-4 w-4" />
-                      </button>
-                    )}
-                    
-                    {doc.status === 'pending' && (
                       <>
                         <button
-                          onClick={() => approveDocument(doc.id)}
-                          className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs rounded transition-colors"
+                          className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                          onClick={() => handlePreview(doc.fileId)}
                         >
-                          Approve
+                          View
                         </button>
                         <button
-                          onClick={() => rejectDocument(doc.id, 'Quality issues identified')}
-                          className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors"
+                          className="p-2 text-gray-400 hover:text-white transition-colors"
+                          onClick={() => handleDownload(doc.fileId)}
                         >
-                          Reject
+                          <Download className="h-4 w-4" />
                         </button>
                       </>
                     )}
                     
                     {doc.status === 'missing' && (
-                      <button className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors">
-                        Request
-                      </button>
+                      <span className="px-3 py-1 bg-blue-600 text-white text-xs rounded">
+                        Request from Decision Stage
+                      </span>
                     )}
                   </div>
                 </div>
@@ -290,6 +376,29 @@ export const DocumentCheck: React.FC<DocumentCheckProps> = ({ claim }) => {
                 <p className="text-green-400">Ready to proceed to decision stage</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {documents.some((doc) => doc.required && doc.status === 'missing') && (
+          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-300 rounded-lg space-y-3">
+            <h5 className="font-semibold text-yellow-800">Missing required documents detected</h5>
+            <p className="text-sm text-yellow-700">
+              You can immediately request missing documents from this stage before moving forward.
+            </p>
+            <textarea
+              value={requestNotes}
+              onChange={(e) => setRequestNotes(e.target.value)}
+              rows={3}
+              className="w-full p-2 border border-yellow-300 rounded text-sm"
+              placeholder="Add notes for the policyholder"
+            />
+            <button
+              onClick={requestMissingDocumentsNow}
+              disabled={isRequesting}
+              className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:bg-gray-400"
+            >
+              {isRequesting ? 'Sending request...' : 'Request Missing Documents Now'}
+            </button>
           </div>
         )}
       </div>

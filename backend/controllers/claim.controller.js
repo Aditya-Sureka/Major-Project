@@ -8,6 +8,68 @@ import Upload from "../models/upload.model.js";
 class ClaimController {
   // Vehicle and Health claim endpoints removed — only Life Insurance supported
 
+  constructor() {
+    this.getAllClaimsByUser = this.getAllClaimsByUser.bind(this);
+    this.getPoliciesByUser = this.getPoliciesByUser.bind(this);
+    this.getLatestPolicyByUser = this.getLatestPolicyByUser.bind(this);
+    this.getClaimStatuses = this.getClaimStatuses.bind(this);
+  }
+
+  buildScopedClaimFeed(claim, insuranceDetails) {
+    return {
+      claim: {
+        _id: claim._id,
+        insurerIrdai: claim.insurerIrdai,
+        policyType: claim.policyType,
+        status: claim.status,
+        aiScore: claim.aiScore,
+        aiConfidence: claim.aiConfidence,
+        aiSuggestions: claim.aiSuggestions || [],
+        fraudFlag: claim.fraudFlag,
+        riskFactors: claim.riskFactors || [],
+        rejectionReason: claim.rejectionReason,
+        rejectionAdditionalData: claim.rejectionAdditionalData,
+        requestedDocuments: claim.requestedDocuments || [],
+        requestedDocumentsNotes: claim.requestedDocumentsNotes,
+        requestedDocumentsAt: claim.requestedDocumentsAt,
+        decisionAt: claim.decisionAt,
+        createdAt: claim.createdAt,
+        updatedAt: claim.updatedAt,
+      },
+      insuranceDetails: insuranceDetails
+        ? {
+            _id: insuranceDetails._id,
+            policyNumber: insuranceDetails.policyNumber,
+            policyHolderName: insuranceDetails.policyHolderName,
+            uin: insuranceDetails.uin,
+            insurerIrdai: insuranceDetails.insurerIrdai,
+            charges: insuranceDetails.charges,
+            createdAt: insuranceDetails.createdAt,
+          }
+        : null,
+    };
+  }
+
+  async getClaimsForUser(firebaseUid) {
+    const claimRecords = await Claim.find({ firebaseUid }).sort({ createdAt: -1 });
+    const claimArray = [];
+
+    for (const claim of claimRecords) {
+      if (claim.policyModel !== "LifeInsurance") {
+        continue;
+      }
+
+      const insuranceDetails = await LifeInsurance.findById(claim.policyId);
+      if (!insuranceDetails) {
+        continue;
+      }
+
+      claimArray.push(this.buildScopedClaimFeed(claim, insuranceDetails));
+    }
+
+    return claimArray;
+  }
+
   async claimLifeInsurance(req, res) {
     try {
       // Validate req.user exists
@@ -102,6 +164,7 @@ class ClaimController {
         policyType: "life-insurance",
         policyId: newLifeInsurance._id,
         policyModel: "LifeInsurance",
+        updatedAt: new Date(),
       });
 
       return res.status(201).json({
@@ -260,6 +323,7 @@ class ClaimController {
       await Claim.findByIdAndUpdate(id, {
         $set: {
           status: "Submitted",
+          updatedAt: new Date(),
         },
       });
 
@@ -343,31 +407,11 @@ class ClaimController {
     try {
       const firebaseUid = req.user.firebaseUid;
 
-      let claimArray = [];
+      const claimArray = await this.getClaimsForUser(firebaseUid);
 
-      const claimRecords = await Claim.find({ firebaseUid });
-      console.log(claimRecords);
-
-      if (!claimRecords || claimRecords.length === 0) {
+      if (!claimArray || claimArray.length === 0) {
         console.log("No claim records found for user");
         return res.status(200).json({ claimArray: [] });
-      }
-
-      for (const claim of claimRecords) {
-        const insuranceId = claim.policyId;
-
-        if (claim.policyModel !== "LifeInsurance") {
-          console.warn("Skipping non-life policy:", claim.policyModel);
-          continue;
-        }
-
-        const insuranceDetails = await LifeInsurance.findById(insuranceId);
-        console.log(insuranceDetails);
-
-        claimArray.push({
-          claim,
-          insuranceDetails,
-        });
       }
 
       return res.status(200).json({
@@ -378,6 +422,89 @@ class ClaimController {
       console.error(err.message);
       return res.status(500).json({
         message: "Failed to fetch claim records",
+        error: err.message,
+      });
+    }
+  }
+
+  async getPoliciesByUser(req, res) {
+    try {
+      const firebaseUid = req.user.firebaseUid;
+      const claimArray = await this.getClaimsForUser(firebaseUid);
+
+      return res.status(200).json({
+        message: "Policies fetched successfully",
+        data: claimArray,
+      });
+    } catch (err) {
+      console.error(err.message);
+      return res.status(500).json({
+        message: "Failed to fetch policies",
+        error: err.message,
+      });
+    }
+  }
+
+  async getLatestPolicyByUser(req, res) {
+    try {
+      const firebaseUid = req.user.firebaseUid;
+      const claimArray = await this.getClaimsForUser(firebaseUid);
+      const latestPolicy = claimArray[0] || null;
+
+      return res.status(200).json({
+        message: "Latest policy fetched successfully",
+        data: latestPolicy,
+      });
+    } catch (err) {
+      console.error(err.message);
+      return res.status(500).json({
+        message: "Failed to fetch latest policy",
+        error: err.message,
+      });
+    }
+  }
+
+  async getClaimStatuses(req, res) {
+    try {
+      const firebaseUid = req.user.firebaseUid;
+      const claimArray = await this.getClaimsForUser(firebaseUid);
+
+      const statuses = claimArray.map(({ claim, insuranceDetails }) => ({
+        claim: {
+          _id: claim._id,
+          status: claim.status,
+          updatedAt: claim.updatedAt,
+          decisionAt: claim.decisionAt,
+          rejectionReason: claim.rejectionReason,
+          requestedDocuments: claim.requestedDocuments || [],
+          requestedDocumentsNotes: claim.requestedDocumentsNotes,
+          requestedDocumentsAt: claim.requestedDocumentsAt,
+          aiScore: claim.aiScore,
+          aiConfidence: claim.aiConfidence,
+          policyType: claim.policyType,
+          insurerIrdai: claim.insurerIrdai,
+          createdAt: claim.createdAt,
+        },
+        insuranceDetails: insuranceDetails
+          ? {
+              _id: insuranceDetails._id,
+              policyNumber: insuranceDetails.policyNumber,
+              policyHolderName: insuranceDetails.policyHolderName,
+              uin: insuranceDetails.uin,
+              insurerIrdai: insuranceDetails.insurerIrdai,
+              charges: insuranceDetails.charges,
+            }
+          : null,
+      }));
+
+      return res.status(200).json({
+        message: "Claim statuses fetched successfully",
+        data: statuses,
+      });
+    } catch (err) {
+      console.error(err.message);
+      return res.status(500).json({
+        message: "Failed to fetch claim statuses",
         error: err.message,
       });
     }

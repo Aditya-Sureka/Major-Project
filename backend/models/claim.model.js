@@ -40,6 +40,10 @@ const claimSchema = new mongoose.Schema({
     rejectionReason: { type: String, default: null },
 
     rejectionAdditionalData : String,
+    requestedDocuments: { type: [String], default: [] },
+    requestedDocumentsNotes: { type: String, default: null },
+    requestedDocumentsAt: { type: Date, default: null },
+    decisionAt: { type: Date, default: null },
 
     appealData: {
         appealSubmitted: { type: Boolean, default: false },

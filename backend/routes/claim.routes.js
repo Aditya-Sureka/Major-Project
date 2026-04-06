@@ -57,6 +57,9 @@ router.post("/submit/:id", verifyAuth, claimController.submitInsurance);
 router.get("/getAIScore/:id", verifyAuth, claimController.getScore);
 
 router.get("/getAllClaims", verifyAuth, claimController.getAllClaimsByUser);
+router.get("/getPolicies", verifyAuth, claimController.getPoliciesByUser);
+router.get("/getLatestPolicy", verifyAuth, claimController.getLatestPolicyByUser);
+router.get("/getStatuses", verifyAuth, claimController.getClaimStatuses);
 
 router.get("/getClaim/:id", verifyAuth, claimController.getClaim);
 

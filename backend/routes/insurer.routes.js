@@ -23,6 +23,7 @@ router.get("/downloadDoc/:id", claimDocs.downloadDocument);
 router.post("/review/:id", verifyAuth, decisionController.setReview);
 router.post("/approve/:id", verifyAuth, decisionController.setApprove);
 router.post("/reject/:id", verifyAuth, decisionController.setReject);
+router.post("/request-docs/:id", verifyAuth, decisionController.requestDocuments);
 
 
 export default router;

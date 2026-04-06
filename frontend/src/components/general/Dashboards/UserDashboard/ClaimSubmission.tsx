@@ -5,10 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Upload, Shield } from "lucide-react";
 import { Info } from 'lucide-react';
 import { LifeInsuranceForm } from '../../forms/lifeform';
+import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 const ClaimSubmission = () => {
   const [insuranceType, setInsuranceType] = useState("Life insurance");
   const [insuranceFormData, setinsuranceFormData] = useState({});
+  const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(()=>{
     console.log(insuranceFormData);
@@ -115,7 +119,11 @@ const ClaimSubmission = () => {
   const submitForm = async () => {
     // Validation: Check if form data is empty
     if (!insuranceFormData || Object.keys(insuranceFormData).length === 0) {
-      alert("Please fill in the form before submitting.");
+      toast({
+        title: "Missing Information",
+        description: "Please fill in the form before submitting.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -127,7 +135,11 @@ const ClaimSubmission = () => {
 
     // Validation: Check if route exists for insurance type
     if (!routes[insuranceType as keyof typeof routes]) {
-      alert(`Invalid insurance type: ${insuranceType}`);
+      toast({
+        title: "Invalid Insurance Type",
+        description: `Invalid insurance type: ${insuranceType}`,
+        variant: "destructive",
+      });
       return;
     }
 
@@ -140,7 +152,11 @@ const ClaimSubmission = () => {
       const required = ['insurerIrdai', 'uin', 'policyNumber', 'policyHolderName'];
       const missing = required.filter(field => !transformedData[field] || transformedData[field] === '');
       if (missing.length > 0) {
-        alert(`Please fill in the following required fields in the form above:\n${missing.join(', ')}\n\nMake sure you click the form's submit button first!`);
+        toast({
+          title: "Required Fields Missing",
+          description: `Please complete: ${missing.join(', ')}`,
+          variant: "destructive",
+        });
         console.error("Missing required fields:", missing);
         console.error("Current form data:", transformedData);
         return;
@@ -157,13 +173,21 @@ const ClaimSubmission = () => {
     // Ensure insuranceType is available from state or passed in
     const jwt = localStorage.getItem("JWT");
     if (!jwt) {
-      alert("Please log in to submit a claim.");
+      toast({
+        title: "Login Required",
+        description: "Please log in to submit a claim.",
+        variant: "destructive",
+      });
       return;
     }
 
     const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
     if (!base_url) {
-      alert("Backend URL is not configured. Please check your environment variables.");
+      toast({
+        title: "Configuration Error",
+        description: "Backend URL is not configured. Please check environment variables.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -199,11 +223,14 @@ const ClaimSubmission = () => {
         throw new Error(data.message || data.error || `Server error: ${response.status} ${response.statusText}`);
       }
   
-      // handle success (e.g., navigate or show alert)
-      alert("Claim submitted successfully!");
-      // Optionally reset form
+      toast({
+        title: "Information Saved",
+        description: "Your claim information has been saved successfully.",
+      });
+
       setinsuranceFormData({});
       setUploadedFiles({});
+      navigate('/policyHolder-dashboard?tab=track', { replace: true });
     } catch (error) {
       console.error("Form submission error:", error);
       console.error("Request URL:", url);
@@ -225,7 +252,11 @@ const ClaimSubmission = () => {
       
       console.error("Error details:", error);
       console.error("Full error:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
-      alert(errorMessage);
+      toast({
+        title: "Submission Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
     }
   };
 

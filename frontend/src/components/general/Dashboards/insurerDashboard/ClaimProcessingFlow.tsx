@@ -10,8 +10,10 @@ interface ClaimData {
   insuranceDetails: {
     ownerName?: string;
     policyHolderName?: string;
+    charges?: number;
   };
   claim: {
+    _id?: string;
     policyType: string;
     status?: string;
     [key: string]: unknown;
@@ -30,11 +32,14 @@ export const ClaimProcessingFlow: React.FC<ClaimProcessingFlowProps> = ({
   onBack,
   onClaimUpdated,
 }) => {
-  const [currentStage, setCurrentStage] = useState<string>('initial');
+  const [currentStage, setCurrentStage] = useState<string>('ai-risk');
   const [claimState, setClaimState] = useState<ClaimData | null>(selectedClaim);
+  const [stageCompletions, setStageCompletions] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setClaimState(selectedClaim);
+    setStageCompletions({});
+    setCurrentStage('ai-risk');
   }, [selectedClaim]);
   // const [processStages, setProcessStages] = useState<ProcessStage[]>([
   //   { id: 'ai-risk', name: 'AI Risk Evaluation', status: 'pending', type: 'automated' },
@@ -49,18 +54,22 @@ export const ClaimProcessingFlow: React.FC<ClaimProcessingFlowProps> = ({
 
     switch (stageId) {
       case 'ai-risk': {
-        if (typeof (claim as any).claim?.aiScore === 'number') return 'completed';
-        if (status === 'Instantiated' || status === 'UnderReview') return 'processing';
-        return 'completed';
+        return stageCompletions['ai-risk'] ? 'completed' : 'pending';
       }
       case 'fraud-detection': {
-        const hasRiskFactors = Array.isArray((claim as any).claim?.riskFactors) && (claim as any).claim?.riskFactors.length > 0;
-        if (hasRiskFactors) return 'completed';
-        if (status === 'UnderReview' || status === 'Submitted') return 'processing';
-        return status === 'Escalated' ? 'failed' : 'pending';
+        return stageCompletions['fraud-detection'] ? 'completed' : 'pending';
       }
       case 'document-check': {
-        if (status === 'Submitted' || status === 'Escalated') return 'processing';
+        const totalRequired = Number((claim as any)?.documentSummary?.totalRequired || 0);
+        const uploadedCount = Number((claim as any)?.documentSummary?.uploadedCount || 0);
+        if (totalRequired > 0 && uploadedCount >= totalRequired) return 'completed';
+
+        const requestedDocuments = Array.isArray((claim as any)?.claim?.requestedDocuments)
+          ? (claim as any).claim.requestedDocuments
+          : [];
+
+        if (requestedDocuments.length > 0) return 'processing';
+        if (status === 'Submitted' || status === 'Escalated' || status === 'UnderReview') return 'processing';
         if (status === 'Settled' || status === 'Rejected') return 'completed';
         return 'pending';
       }
@@ -82,20 +91,31 @@ export const ClaimProcessingFlow: React.FC<ClaimProcessingFlowProps> = ({
     { id: 'decision', name: 'Decision Area', type: 'manual' as const },
   ];
 
+  const getNextStage = (stageId: string) => {
+    const currentIndex = processStages.findIndex((stage) => stage.id === stageId);
+    if (currentIndex < 0 || currentIndex >= processStages.length - 1) return null;
+    return processStages[currentIndex + 1]?.id || null;
+  };
+
+  const markStageCompleted = (stageId: string) => {
+    setStageCompletions((prev) => ({ ...prev, [stageId]: true }));
+  };
+
+  useEffect(() => {
+    const currentStatus = resolveStageStatus(currentStage);
+    if (currentStatus === 'completed') {
+      const nextStage = getNextStage(currentStage);
+      if (nextStage) {
+        setCurrentStage(nextStage);
+      }
+    }
+  }, [claimState, currentStage, stageCompletions]);
+
   // const mockClaim = selectedClaim;
 
   // const getRandomAmount = () => {
   //   return Math.floor(Math.random()*(10000 - 5000))+5000;
   // }
-
-  const getRandomPriority = () => {
-    const random = Math.random();
-    if (random < 0.33) return "medium";
-    if (random < 0.66) return "high";
-    return "low";
-  }
-
-
 
   const getStageIcon = (type: string, status: string) => {
     if (status === 'completed') return <CheckCircle className="h-6 w-6 text-green-400" />;
@@ -118,6 +138,14 @@ export const ClaimProcessingFlow: React.FC<ClaimProcessingFlowProps> = ({
     }
   };
 
+  const resolveStageStatus = (stageId: string) => {
+    if (stageId === 'ai-risk' || stageId === 'fraud-detection') {
+      return stageCompletions[stageId] ? 'completed' : 'pending';
+    }
+
+    return deriveStageStatus(stageId, claimState);
+  };
+
   return (
     <div className="space-y-6">
   {/* Header */}
@@ -132,7 +160,7 @@ export const ClaimProcessingFlow: React.FC<ClaimProcessingFlowProps> = ({
       </button>
       <div className="h-6 w-px bg-gray-600" />
       <h2 className="text-xl font-semibold text-black">
-        Processing Flow - {"CLM - 001"}
+        Processing Flow - {selectedClaim?.claim?._id || 'Selected Claim'}
       </h2>
     </div>
   </div>
@@ -202,7 +230,7 @@ export const ClaimProcessingFlow: React.FC<ClaimProcessingFlowProps> = ({
       {/* Flow Visualization */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6 mb-0">
         {processStages.map((stage, index) => {
-          const status = deriveStageStatus(stage.id, claimState);
+          const status = resolveStageStatus(stage.id);
           return (
           <div key={stage.id} className="flex flex-col items-center relative">
             <div
@@ -241,20 +269,44 @@ export const ClaimProcessingFlow: React.FC<ClaimProcessingFlowProps> = ({
       {/* Detailed Stage View */}
       <div className="bg-white border border-gray-300 rounded-lg p-6 mt-6">
         {currentStage === 'ai-risk' && claimState && (
-          <AIRiskEvaluation claim={claimState} />
+          <AIRiskEvaluation
+            claim={claimState}
+            onCompleted={() => {
+              markStageCompleted('ai-risk');
+              const nextStage = getNextStage('ai-risk');
+              if (nextStage) setCurrentStage(nextStage);
+            }}
+          />
         )}
         {currentStage === 'fraud-detection' && claimState && (
-          <FraudDetection claim={claimState} />
+          <FraudDetection
+            claim={claimState}
+            onCompleted={() => {
+              markStageCompleted('fraud-detection');
+              const nextStage = getNextStage('fraud-detection');
+              if (nextStage) setCurrentStage(nextStage);
+            }}
+          />
         )}
         {currentStage === 'document-check' && claimState && (
-          <DocumentCheck claim={claimState} />
+          <DocumentCheck
+            claim={claimState}
+            onClaimUpdated={(updated) => {
+              setClaimState(updated);
+              if (onClaimUpdated) {
+                onClaimUpdated(updated);
+              }
+            }}
+          />
         )}
         {currentStage === 'decision' && claimState && (
           <DecisionArea
             claim={claimState}
             onClaimUpdated={(updated) => {
               setClaimState(updated);
-              onClaimUpdated && onClaimUpdated(updated);
+              if (onClaimUpdated) {
+                onClaimUpdated(updated);
+              }
             }}
           />
         )}
