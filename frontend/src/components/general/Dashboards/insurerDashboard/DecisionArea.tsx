@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { CheckCircle, XCircle, FileText, AlertTriangle } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 interface ClaimData {
   id?: string;
@@ -132,6 +133,19 @@ export const DecisionArea: React.FC<DecisionAreaProps> = ({ claim, onClaimUpdate
       });
 
       if (!response.ok) {
+        let message = 'Failed to update claim decision';
+        try {
+          const errorJson = await response.json();
+          message = errorJson?.message || errorJson?.error || message;
+        } catch {
+          // Keep fallback message when backend does not return JSON.
+        }
+
+        toast({
+          title: 'Decision update failed',
+          description: message,
+          variant: 'destructive',
+        });
         return;
       }
 
@@ -152,6 +166,11 @@ export const DecisionArea: React.FC<DecisionAreaProps> = ({ claim, onClaimUpdate
       if (onClaimUpdated) {
         onClaimUpdated(updated);
       }
+
+      toast({
+        title: 'Decision updated',
+        description: json?.message || 'Claim decision saved successfully.',
+      });
 
       setDecision(null);
       setShowConfirmation(false);

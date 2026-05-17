@@ -13,7 +13,15 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ["claim_submitted", "claim_under_review", "claim_approved", "claim_rejected", "documents_requested"],
+    enum: [
+      "claim_submitted",
+      "claim_under_review",
+      "claim_approved",
+      "claim_rejected",
+      "documents_requested",
+      "claim_escalated",
+      "message_sent",
+    ],
     required: true,
   },
   title: {
@@ -27,6 +35,10 @@ const notificationSchema = new mongoose.Schema({
   data: {
     type: mongoose.Schema.Types.Mixed,
     default: {},
+  },
+  actionUrl: {
+    type: String,
+    default: null,
   },
   read: {
     type: Boolean,

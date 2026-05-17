@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,9 @@ import PolicySection from "@/components/general/Dashboards/UserDashboard/PolicyS
 import ClaimSubmission from "@/components/general/Dashboards/UserDashboard/ClaimSubmission";
 import ClaimTracker from "@/components/general/Dashboards/UserDashboard/ClaimTracker";
 import AppealSection from "@/components/general/Dashboards/UserDashboard/AppealSection";
+import NotificationPanel from "@/components/general/NotificationPanel";
+import { useNotifications } from "@/hooks/useNotifications";
+import { toast } from "@/hooks/use-toast";
 import { useSearchParams } from 'react-router-dom';
 // import ClaimRecords from "@/components/general/dashboards/UserDashboard/ClaimRecords";
 
@@ -35,12 +38,31 @@ const PolicyHolderDashMain = () => {
   
 
   const [ClaimsData, setClaimsData] = useState([]);
-  const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const previousStatusesRef = useRef<Record<string, string>>({});
+  const hasInitialClaimsRef = useRef(false);
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    deleteNotification,
+  } = useNotifications();
+
+  const claimStatusLabel = useMemo(
+    () => ({
+      Instantiated: "Created",
+      Submitted: "Submitted",
+      UnderReview: "Under Review",
+      Escalated: "Escalated",
+      Settled: "Settled",
+      Rejected: "Rejected",
+    }),
+    []
+  );
 
   //Claim History fetch
   useEffect(() => {
-    const fetchClaimHistory = async() => {
+    const fetchClaimHistory = async () => {
     try {
       const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
       const response = await fetch(`${base_url}/claim/getAllClaims`, {
@@ -51,8 +73,30 @@ const PolicyHolderDashMain = () => {
       });
       if(response.ok){
       const data = await response.json();
-      // Ensure we always set an array, even if data.data is undefined
-      setClaimsData(Array.isArray(data.data) ? data.data : []);
+      const incomingClaims = Array.isArray(data?.data) ? data.data : [];
+
+      const nextStatuses: Record<string, string> = {};
+      incomingClaims.forEach((item: any) => {
+        const claimId = item?.claim?._id;
+        const status = item?.claim?.status;
+        if (!claimId || !status) return;
+        nextStatuses[claimId] = status;
+
+        if (hasInitialClaimsRef.current) {
+          const previousStatus = previousStatusesRef.current[claimId];
+          if (previousStatus && previousStatus !== status) {
+            toast({
+              title: "Claim status updated",
+              description: `Claim ${claimId.slice(-6)} is now ${claimStatusLabel[status as keyof typeof claimStatusLabel] || status}.`,
+            });
+          }
+        }
+      });
+
+      previousStatusesRef.current = nextStatuses;
+      hasInitialClaimsRef.current = true;
+
+      setClaimsData(incomingClaims);
       console.log("Claims fetched");
       console.log(data.data);
       }
@@ -64,36 +108,13 @@ const PolicyHolderDashMain = () => {
       console.error(error);
       setClaimsData([]); // Set empty array on error
     }
-  }
+  };
   fetchClaimHistory();
+  const interval = setInterval(fetchClaimHistory, 15000);
+
+  return () => clearInterval(interval);
   
-  }, [])
-
-  useEffect(() => {
-    const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
-
-    const fetchNotifications = async () => {
-      try {
-        const response = await fetch(`${base_url}/notification`, {
-          method: 'GET',
-          headers: {
-            token: localStorage.getItem('JWT') || '',
-          },
-        });
-
-        if (!response.ok) return;
-
-        const json = await response.json();
-        setNotifications(Array.isArray(json?.data) ? json.data : []);
-      } catch (error) {
-        console.error('Failed to fetch notifications', error);
-      }
-    };
-
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 10000);
-    return () => clearInterval(interval);
-  }, []);
+  }, [claimStatusLabel]);
 
   const [userDet,setuserDet] = useState({
     name:'',
@@ -153,12 +174,14 @@ const PolicyHolderDashMain = () => {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "accepted":
+      case "Settled":
         return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case "rejected":
+      case "Rejected":
         return <XCircle className="h-4 w-4 text-red-600" />;
-      case "under-review":
+      case "UnderReview":
         return <Clock className="h-4 w-4 text-amber-600" />;
+      case "Escalated":
+        return <AlertTriangle className="h-4 w-4 text-purple-600" />;
       default:
         return <AlertTriangle className="h-4 w-4 text-gray-600" />;
     }
@@ -166,31 +189,20 @@ const PolicyHolderDashMain = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "accepted":
+      case "Settled":
         return "bg-green-100 text-green-800 border-green-200";
-      case "rejected":
+      case "Rejected":
         return "bg-red-100 text-red-800 border-red-200";
-      case "under-review":
+      case "UnderReview":
         return "bg-amber-100 text-amber-800 border-amber-200";
+      case "Escalated":
+        return "bg-purple-100 text-purple-800 border-purple-200";
+      case "Submitted":
+        return "bg-blue-100 text-blue-800 border-blue-200";
+      case "Instantiated":
+        return "bg-slate-100 text-slate-800 border-slate-200";
       default:
         return "bg-gray-100 text-gray-800 border-gray-200";
-    }
-  };
-
-  const unreadCount = notifications.filter((item) => !item.read).length;
-
-  const markNotificationRead = async (notificationId: string) => {
-    try {
-      const base_url = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/+$/, '');
-      await fetch(`${base_url}/notification/${notificationId}/read`, {
-        method: 'PATCH',
-        headers: {
-          token: localStorage.getItem('JWT') || '',
-        },
-      });
-      setNotifications((prev) => prev.map((item) => (item._id === notificationId ? { ...item, read: true } : item)));
-    } catch (error) {
-      console.error('Failed to mark notification as read', error);
     }
   };
 
@@ -205,20 +217,18 @@ const PolicyHolderDashMain = () => {
               <h1 className="text-2xl font-bold text-gray-900">InsuranceSaathi</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="sm" className="relative">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="relative"
+                onClick={() => setShowNotifications((prev) => !prev)}
+              >
                 <Bell className="h-5 w-5" />
                 {unreadCount > 0 && (
                   <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-red-500 text-white text-xs">
                     {unreadCount}
                   </Badge>
                 )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowNotifications((prev) => !prev)}
-              >
-                Alerts
               </Button>
               <div className="text-sm">
                 <p className="font-medium text-gray-900">{userDet?.name}</p>
@@ -231,35 +241,15 @@ const PolicyHolderDashMain = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {showNotifications && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Notifications</CardTitle>
-              <CardDescription>Latest insurer updates on your claims</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {notifications.length > 0 ? (
-                notifications.map((notification) => (
-                  <div
-                    key={notification._id}
-                    className={`p-3 rounded-lg border ${notification.read ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'}`}
-                    onClick={() => markNotificationRead(notification._id)}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-gray-900">{notification.title}</p>
-                        <p className="text-sm text-gray-600">{notification.message}</p>
-                      </div>
-                      {!notification.read && <span className="text-xs text-blue-600 font-semibold">NEW</span>}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500">No notifications yet.</p>
-              )}
-            </CardContent>
-          </Card>
+          <NotificationPanel
+            notifications={notifications}
+            onMarkRead={markAsRead}
+            onDelete={deleteNotification}
+            onNavigate={(url) => {
+              if (!url) return;
+              window.location.href = url;
+            }}
+          />
         )}
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full p-4">

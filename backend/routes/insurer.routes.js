@@ -20,10 +20,11 @@ router.get("/getClaimDocs/:id", verifyAuth, claimDocs.getClaimDocs);
 router.get("/previewDoc/:id", claimDocs.previewDocument);
 router.get("/downloadDoc/:id", claimDocs.downloadDocument);
 
-router.post("/review/:id", verifyAuth, decisionController.setReview);
-router.post("/approve/:id", verifyAuth, decisionController.setApprove);
-router.post("/reject/:id", verifyAuth, decisionController.setReject);
-router.post("/request-docs/:id", verifyAuth, decisionController.requestDocuments);
+router.post("/review/:id", verifyAuth, decisionController.setReview.bind(decisionController));
+router.post("/approve/:id", verifyAuth, decisionController.setApprove.bind(decisionController));
+router.post("/reject/:id", verifyAuth, decisionController.setReject.bind(decisionController));
+router.post("/request-docs/:id", verifyAuth, decisionController.requestDocuments.bind(decisionController));
+router.post("/escalate/:id", verifyAuth, decisionController.escalateClaim.bind(decisionController));
 
 
 export default router;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FileCheck, Upload, CheckCircle, XCircle, AlertTriangle, Download } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 interface ClaimData {
   claim: {
@@ -210,11 +211,28 @@ export const DocumentCheck: React.FC<DocumentCheckProps> = ({ claim, onClaimUpda
       });
 
       if (!response.ok) {
+        let message = 'Failed to request missing documents';
+        try {
+          const errorJson = await response.json();
+          message = errorJson?.message || errorJson?.error || message;
+        } catch {
+          // Keep fallback when backend does not return JSON.
+        }
+
+        toast({
+          title: 'Request failed',
+          description: message,
+          variant: 'destructive',
+        });
         return;
       }
 
       const json = await response.json();
       const serverClaim = json?.data;
+      toast({
+        title: 'Documents requested',
+        description: json?.message || 'Request sent to policyholder successfully.',
+      });
       if (serverClaim && onClaimUpdated) {
         onClaimUpdated({
           ...claim,
@@ -226,6 +244,11 @@ export const DocumentCheck: React.FC<DocumentCheckProps> = ({ claim, onClaimUpda
       }
     } catch (error) {
       console.error('Failed to request missing docs', error);
+      toast({
+        title: 'Request failed',
+        description: 'Unexpected error while requesting documents.',
+        variant: 'destructive',
+      });
     } finally {
       setIsRequesting(false);
     }

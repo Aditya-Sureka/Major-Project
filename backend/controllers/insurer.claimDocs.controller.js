@@ -23,7 +23,7 @@ class ClaimDocs {
     formatDoc = (doc) => {
         return {
             _id: doc._id,
-            url: doc.url,
+            url: doc.fileurl,
             fileName: doc.originalName,
             uploadedAt: doc.createdAt,
             fileType: doc.fileType,
@@ -112,7 +112,17 @@ class ClaimDocs {
                 expires_at: Math.floor(Date.now() / 1000) + 300
             });
 
-            return res.redirect(secureUrl);
+            const fileResponse = await axios.get(secureUrl, {
+                responseType: "stream"
+            });
+
+            const contentType = fileResponse.headers["content-type"] || "application/octet-stream";
+            const fileName = doc.originalName || "document";
+
+            res.setHeader("Content-Type", contentType);
+            res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+
+            fileResponse.data.pipe(res);
 
         } catch (err) {
             console.error("Preview error:", err);

@@ -1,5 +1,6 @@
 import express from "express";
 import claimController from "../controllers/claim.controller.js";
+import fetchClaimController from "../controllers/insurer.claimFetch.controller.js";
 import verifyAuth from "../middleware/verifyAuth.middleware.js";
 import upload from "../middleware/upload.middleware.js";
 
@@ -62,5 +63,6 @@ router.get("/getLatestPolicy", verifyAuth, claimController.getLatestPolicyByUser
 router.get("/getStatuses", verifyAuth, claimController.getClaimStatuses);
 
 router.get("/getClaim/:id", verifyAuth, claimController.getClaim);
+router.get("/insurer/fetchClaims", verifyAuth, fetchClaimController.fetchClaimsBasedOnIrdai);
 
 export default router;
